@@ -12,8 +12,10 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
 use defmt::info;
 use esp_hal::clock::CpuClock;
+use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::main;
-use esp_hal::time::{Duration, Instant};
+use esp_hal::rmt::{PulseCode, Rmt, TxChannelConfig, TxChannelCreator};
+use esp_hal::time::{Duration, Instant, Rate};
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
@@ -67,18 +69,71 @@ fn main() -> ! {
             .expect("Failed to initialize Wi-Fi controller");
     let _connector = BleConnector::new(peripherals.BT, Default::default());
 
+    let neopixel_power = peripherals.GPIO20;
+    let mut power = Output::new(neopixel_power, Level::High, OutputConfig::default());
+    power.set_high();
+
+    // let rmt = peripherals
+    // let rmt = Rmt::new(peripherals.GP)
+
+    // let mut neopixel = Output::new(peripherals.GPIO9, Level::High, OutputConfig::default());
+
     let mut app = App::new();
     app.init_resource::<Counter>();
     app.add_systems(Update, test_schedule);
 
+    let color = encode(4, 0, 2);
+
+    let off = encode(0, 0, 0);
+
+    let rmt = Rmt::new(peripherals.RMT, Rate::from_mhz(80)).unwrap();
+
+    let mut tx = rmt
+        .channel0
+        .configure_tx(&TxChannelConfig::default().with_clk_divider(1))
+        .unwrap()
+        .with_pin(peripherals.GPIO9);
+
+    let mut transmit_color = true;
+
     loop {
+        let color = if transmit_color { &color } else { &off };
+        tx = match tx.transmit(color) {
+            Ok(txn) => match txn.wait() {
+                Ok(c) | Err((_, c)) => c,
+            },
+            Err((_, c)) => c,
+        };
+        // neopixel.toggle();
         info!("Hello world!");
         let delay_start = Instant::now();
         while delay_start.elapsed() < Duration::from_millis(500) {}
         app.update();
+        transmit_color = !transmit_color;
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples
+}
+const T0H: u16 = 30;
+const T0L: u16 = 70;
+const T1H: u16 = 70;
+const T1L: u16 = 30;
+
+fn encode(r: u8, g: u8, b: u8) -> [PulseCode; 25] {
+    // GRB, MSB
+    let grb = ((g as u32) << 16) | ((r as u32) << 8) | (b as u32);
+
+    let mut buf = [PulseCode::end_marker(); 25];
+
+    for i in 0..24 {
+        let bit = (grb >> (23 - i)) & 1;
+        buf[i] = if bit == 1 {
+            PulseCode::new(Level::High, T1H, Level::Low, T1L)
+        } else {
+            PulseCode::new(Level::High, T0H, Level::Low, T0L)
+        };
+    }
+    buf
 }
 
 #[derive(Resource, Default)]

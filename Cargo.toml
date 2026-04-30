@@ -53,6 +53,8 @@ smoltcp = { version = "0.13.0", default-features = false, features = [
 ] }
 bevy_ecs = { version = "0.18", default-features = false, features = ["critical-section"] }
 bevy_app = { version = "0.18", default-features = false, features = ["critical-section"] }
+# esp-hal-smartled = {version = "0.17.0", features = ["esp32c6", "defmt"] }
+smart-leds = {version = "0.4"}
 
 
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html
