@@ -10,5 +10,7 @@ Target: `riscv32imac-unknown-none-elf`
 - ESP32-C6 Datasheet: [https://documentation.espressif.com/esp32-c6-mini-1_mini-1u_datasheet_en.pdf]
 
 ### Breakout board
-- Adafruit page: [https://www.adafruit.com/product/4224#tutorials]
--
+- Adafruit page: [https://www.adafruit.com/product/4224]
+
+### Display
+- Adafruit page: [https://www.adafruit.com/product/6381]
