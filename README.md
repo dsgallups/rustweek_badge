@@ -12,5 +12,15 @@ Target: `riscv32imac-unknown-none-elf`
 ### Breakout board
 - Adafruit page: [https://www.adafruit.com/product/4224]
 
-### Display
+### Display (2color/tri-color)
 - Adafruit page: [https://www.adafruit.com/product/6381]
+- Tricolor DigiKey page: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/6382/27525826]
+- Tricolor Datasheet: [https://cdn-shop.adafruit.com/product-files/6382/6382+C22266-001+datasheet+ZJY400300-042CABMFGN-R.pdf]
+- 
+
+
+### Peripherals
+- General Purpose Speaker: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/4227/10245140]
+- General Purpose Speaker Datasheet: [https://cdn-shop.adafruit.com/product-files/4227/C13238-001+spec+RB-2030008G-046LR-E+for+C13238-001++(1).pdf]
+- Speaker Amplication Board: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/987/5629428]
+- Speaker Amplication Board Datasheet: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/987/5629428]
