@@ -7,6 +7,9 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+use bevy_app::{App, Update};
+use bevy_ecs::resource::Resource;
+use bevy_ecs::system::ResMut;
 use defmt::info;
 use esp_hal::clock::CpuClock;
 use esp_hal::main;
@@ -64,11 +67,24 @@ fn main() -> ! {
             .expect("Failed to initialize Wi-Fi controller");
     let _connector = BleConnector::new(peripherals.BT, Default::default());
 
+    let mut app = App::new();
+    app.init_resource::<Counter>();
+    app.add_systems(Update, test_schedule);
+
     loop {
         info!("Hello world!");
         let delay_start = Instant::now();
         while delay_start.elapsed() < Duration::from_millis(500) {}
+        app.update();
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples
+}
+
+#[derive(Resource, Default)]
+pub struct Counter(u32);
+
+fn test_schedule(mut counter: ResMut<Counter>) {
+    info!("in ecs sched :) {}", counter.0);
+    counter.0 += 1;
 }
