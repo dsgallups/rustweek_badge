@@ -25,3 +25,17 @@ Target: `riscv32imac-unknown-none-elf`
 - General Purpose Speaker Datasheet: [https://cdn-shop.adafruit.com/product-files/4227/C13238-001+spec+RB-2030008G-046LR-E+for+C13238-001++(1).pdf]
 - Speaker Amplication Board: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/987/5629428]
 - Speaker Amplication Board Datasheet: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/987/5629428]
+
+
+## Wiring
+
+| Signal | GPIO |
+| ------ | ---- |
+| SCK | 21 |
+| MOSI | 22 |
+| MISO | 23 |
+| EPD CS (ECS) | 16 |
+| EPD DC (EDC) | 17 | 
+| EPD RST | 18 |
+| EPD BUSY | 6 | 
+| SRAM CS (SRCS) | 5 |
