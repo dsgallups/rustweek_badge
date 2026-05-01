@@ -7,8 +7,14 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+mod epd;
+mod testing;
+
 use core::cell::RefCell;
 
+use crate::epd::display420::Display420Mono;
+use crate::epd::sram23k256::Sram23k256;
+use crate::epd::ssd1683::{HEIGHT, Ssd1683, WIDTH};
 use bevy_app::{App, Update};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
@@ -28,9 +34,8 @@ use esp_hal::time::{Duration, Instant, Rate};
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
-use rustweek_badge::epd::display420::Display420Mono;
-use rustweek_badge::epd::sram23k256::Sram23k256;
-use rustweek_badge::epd::ssd1683::{HEIGHT, Ssd1683, WIDTH};
+
+use crate::testing::test_display;
 
 extern crate alloc;
 
@@ -96,74 +101,42 @@ fn main() -> ! {
     let sram_cs = Output::new(peripherals.GPIO5, Level::High, OutputConfig::default());
 
     // two pin gap
+    info!("EPD: configuring SPI2");
+    let spi = Spi::new(
+        peripherals.SPI2,
+        SpiConfig::default()
+            .with_frequency(Rate::from_mhz(4))
+            .with_mode(SpiMode::_0),
+    )
+    .expect("SPI2 config")
+    .with_sck(peripherals.GPIO21)
+    .with_mosi(peripherals.GPIO22)
+    .with_miso(peripherals.GPIO23);
 
-    {
-        info!("EPD: configuring SPI2");
-        let spi = Spi::new(
-            peripherals.SPI2,
-            SpiConfig::default()
-                .with_frequency(Rate::from_mhz(4))
-                .with_mode(SpiMode::_0),
-        )
-        .expect("SPI2 config")
-        .with_sck(peripherals.GPIO21)
-        .with_mosi(peripherals.GPIO22)
-        .with_miso(peripherals.GPIO23);
+    let spi_bus = RefCell::new(spi);
+    let epd_dc = Output::new(peripherals.GPIO17, Level::High, OutputConfig::default());
+    let epd_cs = Output::new(peripherals.GPIO16, Level::High, OutputConfig::default());
 
-        let spi_bus = RefCell::new(spi);
+    // this one is on the right hand side
+    let epd_rst = Output::new(peripherals.GPIO18, Level::High, OutputConfig::default());
 
-        let epd_dc = Output::new(peripherals.GPIO17, Level::High, OutputConfig::default());
-        let epd_cs = Output::new(peripherals.GPIO16, Level::High, OutputConfig::default());
+    let epd_spi = RefCellDevice::new(&spi_bus, epd_cs, Delay::new()).expect("epd device");
+    let sram_spi = RefCellDevice::new(&spi_bus, sram_cs, Delay::new()).expect("sram device");
 
-        // this one is on the right hand side
-        let epd_rst = Output::new(peripherals.GPIO18, Level::High, OutputConfig::default());
-
-        let epd_spi = RefCellDevice::new(&spi_bus, epd_cs, Delay::new()).expect("epd device");
-        let sram_spi = RefCellDevice::new(&spi_bus, sram_cs, Delay::new()).expect("sram device");
-
-        let mut sram = Sram23k256::new(sram_spi);
-        if let Err(e) = sram.set_sequential_mode() {
-            defmt::error!("SRAM seq mode failed: {:?}", e);
-        } else {
-            info!("SRAM seq mode OK");
-        }
-
-        let mut epd = Ssd1683::new(epd_spi, epd_dc, epd_rst, epd_busy, Delay::new());
-        match epd.init() {
-            Ok(()) => info!("EPD init OK ({} x {})", WIDTH, HEIGHT),
-            Err(e) => defmt::error!("EPD init failed: {:?}", e),
-        }
-
-        let mut display = Display420Mono::new(&mut sram);
-        if let Err(e) = display.clear_to(BinaryColor::Off) {
-            defmt::error!("EPD clear failed: {:?}", e);
-        }
-
-        if let Err(e) = Line::new(Point::new(0, 0), Point::new(399, 299))
-            .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-            .draw(&mut display)
-        {
-            defmt::error!("EPD draw failed: {:?}", e);
-        }
-
-        if let Err(e) = display.flush_to_panel(&mut epd) {
-            defmt::error!("EPD flush failed: {:?}", e);
-        } else {
-            info!("EPD flush 15000 bytes OK");
-        }
-
-        if let Err(e) = epd.refresh() {
-            defmt::error!("EPD refresh failed: {:?}", e);
-        } else {
-            info!("EPD refresh complete");
-        }
-
-        if let Err(e) = epd.sleep() {
-            defmt::error!("EPD sleep failed: {:?}", e);
-        } else {
-            info!("EPD diagonal drawn + sleeping");
-        }
+    let mut sram = Sram23k256::new(sram_spi);
+    if let Err(e) = sram.set_sequential_mode() {
+        defmt::error!("SRAM seq mode failed: {:?}", e);
+    } else {
+        info!("SRAM seq mode OK");
     }
+
+    let mut epd = Ssd1683::new(epd_spi, epd_dc, epd_rst, epd_busy, Delay::new());
+    match epd.init() {
+        Ok(()) => info!("EPD init OK ({} x {})", WIDTH, HEIGHT),
+        Err(e) => defmt::error!("EPD init failed: {:?}", e),
+    }
+
+    let mut display = Display420Mono::new(sram);
 
     let mut app = App::new();
     app.init_resource::<Counter>();
@@ -191,6 +164,8 @@ fn main() -> ! {
             },
             Err((_, c)) => c,
         };
+        info!("looping around");
+        test_display(&mut display, &mut epd);
         // neopixel.toggle();
         // info!("Hello world!");
         let delay_start = Instant::now();

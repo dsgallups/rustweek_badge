@@ -14,15 +14,15 @@ pub const BUF_LEN: usize = (WIDTH as usize * HEIGHT as usize) / 8;
 const BYTES_PER_ROW: u16 = WIDTH / 8;
 const FLUSH_CHUNK: usize = 256;
 
-pub struct Display420Mono<'a, SPI: SpiDevice> {
-    sram: &'a mut Sram23k256<SPI>,
+pub struct Display420Mono<SPI: SpiDevice> {
+    sram: Sram23k256<SPI>,
     cached_addr: Option<u16>,
     cached_byte: u8,
     cached_dirty: bool,
 }
 
-impl<'a, SPI: SpiDevice> Display420Mono<'a, SPI> {
-    pub fn new(sram: &'a mut Sram23k256<SPI>) -> Self {
+impl<SPI: SpiDevice> Display420Mono<SPI> {
+    pub fn new(sram: Sram23k256<SPI>) -> Self {
         Self {
             sram,
             cached_addr: None,
@@ -121,13 +121,13 @@ impl<'a, SPI: SpiDevice> Display420Mono<'a, SPI> {
     }
 }
 
-impl<SPI: SpiDevice> OriginDimensions for Display420Mono<'_, SPI> {
+impl<SPI: SpiDevice> OriginDimensions for Display420Mono<SPI> {
     fn size(&self) -> Size {
         Size::new(WIDTH as u32, HEIGHT as u32)
     }
 }
 
-impl<SPI: SpiDevice> DrawTarget for Display420Mono<'_, SPI> {
+impl<SPI: SpiDevice> DrawTarget for Display420Mono<SPI> {
     type Color = BinaryColor;
     type Error = SPI::Error;
 
