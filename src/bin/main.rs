@@ -165,11 +165,6 @@ fn main() -> ! {
         }
     }
 
-    // let rmt = peripherals
-    // let rmt = Rmt::new(peripherals.GP)
-
-    // let mut neopixel = Output::new(peripherals.GPIO9, Level::High, OutputConfig::default());
-
     let mut app = App::new();
     app.init_resource::<Counter>();
     app.add_systems(Update, test_schedule);

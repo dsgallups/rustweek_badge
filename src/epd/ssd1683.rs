@@ -17,6 +17,7 @@ pub mod cmd {
     pub const DISP_CTRL1: u8 = 0x21;
     pub const DISP_CTRL2: u8 = 0x22;
     pub const WRITE_RAM1: u8 = 0x24;
+    pub const WRITE_RAM2: u8 = 0x26;
     pub const WRITE_BORDER: u8 = 0x3C;
     pub const SET_RAMXPOS: u8 = 0x44;
     pub const SET_RAMYPOS: u8 = 0x45;
@@ -111,6 +112,10 @@ where
 
     pub fn start_write_ram1(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
         self.command(cmd::WRITE_RAM1)
+    }
+
+    pub fn start_write_ram2(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
+        self.command(cmd::WRITE_RAM2)
     }
 
     pub fn write_data(&mut self, bytes: &[u8]) -> Result<(), DriverError<SPI, DC::Error>> {
