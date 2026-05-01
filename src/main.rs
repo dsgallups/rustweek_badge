@@ -156,6 +156,9 @@ fn main() -> ! {
 
     let mut transmit_color = true;
 
+    let mut toggled = false;
+    let mut full_refresh = true;
+
     loop {
         let color = if transmit_color { &color } else { &off };
         tx = match tx.transmit(color) {
@@ -164,14 +167,16 @@ fn main() -> ! {
             },
             Err((_, c)) => c,
         };
-        info!("looping around");
-        test_display(&mut display, &mut epd);
+        info!("looping around. toggled: {}", toggled);
+        test_display(&mut display, &mut epd, toggled, full_refresh);
         // neopixel.toggle();
         // info!("Hello world!");
         let delay_start = Instant::now();
-        while delay_start.elapsed() < Duration::from_millis(500) {}
+        while delay_start.elapsed() < Duration::from_millis(7000) {}
         // app.update();
         transmit_color = !transmit_color;
+        toggled = !toggled;
+        full_refresh = false;
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples

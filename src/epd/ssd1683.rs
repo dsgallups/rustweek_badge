@@ -26,6 +26,7 @@ pub mod cmd {
 }
 
 const MONO_UPDATE_VAL: u8 = 0xF7;
+const PARTIAL_UPDATE_VAL: u8 = 0xFF;
 
 const BUSY_POLL_INTERVAL_MS: u32 = 10;
 const BUSY_TIMEOUT_MS: u32 = 10_000;
@@ -100,11 +101,7 @@ where
         Ok(())
     }
 
-    pub fn set_ram_address(
-        &mut self,
-        x: u16,
-        y: u16,
-    ) -> Result<(), DriverError<SPI, DC::Error>> {
+    pub fn set_ram_address(&mut self, x: u16, y: u16) -> Result<(), DriverError<SPI, DC::Error>> {
         self.command_with_data(cmd::SET_RAMXCOUNT, &[(x >> 3) as u8])?;
         self.command_with_data(cmd::SET_RAMYCOUNT, &[y as u8, (y >> 8) as u8])?;
         Ok(())
@@ -124,6 +121,12 @@ where
 
     pub fn refresh(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
         self.command_with_data(cmd::DISP_CTRL2, &[MONO_UPDATE_VAL])?;
+        self.command(cmd::MASTER_ACTIVATE)?;
+        self.wait_busy()
+    }
+
+    pub fn refresh_partial(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
+        self.command_with_data(cmd::DISP_CTRL2, &[PARTIAL_UPDATE_VAL])?;
         self.command(cmd::MASTER_ACTIVATE)?;
         self.wait_busy()
     }

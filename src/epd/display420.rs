@@ -14,6 +14,12 @@ pub const BUF_LEN: usize = (WIDTH as usize * HEIGHT as usize) / 8;
 const BYTES_PER_ROW: u16 = WIDTH / 8;
 const FLUSH_CHUNK: usize = 256;
 
+#[derive(Clone, Copy)]
+enum RamBank {
+    One,
+    Two,
+}
+
 pub struct Display420Mono<SPI: SpiDevice> {
     sram: Sram23k256<SPI>,
     cached_addr: Option<u16>,
@@ -60,11 +66,41 @@ impl<SPI: SpiDevice> Display420Mono<SPI> {
         BUSY: InputPin<Error = DC::Error>,
         D: DelayNs,
     {
+        self.stream_to(epd, RamBank::One)
+    }
+
+    pub fn flush_to_ram2<DC, RST, BUSY, D>(
+        &mut self,
+        epd: &mut Ssd1683<SPI, DC, RST, BUSY, D>,
+    ) -> Result<(), Error<SPI::Error, DC::Error>>
+    where
+        DC: OutputPin,
+        RST: OutputPin<Error = DC::Error>,
+        BUSY: InputPin<Error = DC::Error>,
+        D: DelayNs,
+    {
+        self.stream_to(epd, RamBank::Two)
+    }
+
+    fn stream_to<DC, RST, BUSY, D>(
+        &mut self,
+        epd: &mut Ssd1683<SPI, DC, RST, BUSY, D>,
+        bank: RamBank,
+    ) -> Result<(), Error<SPI::Error, DC::Error>>
+    where
+        DC: OutputPin,
+        RST: OutputPin<Error = DC::Error>,
+        BUSY: InputPin<Error = DC::Error>,
+        D: DelayNs,
+    {
         self.flush_cache().map_err(Error::Spi)?;
 
         epd.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
         epd.set_ram_address(0, 0)?;
-        epd.start_write_ram1()?;
+        match bank {
+            RamBank::One => epd.start_write_ram1()?,
+            RamBank::Two => epd.start_write_ram2()?,
+        }
 
         let mut buf = [0u8; FLUSH_CHUNK];
         let mut sent = 0u16;

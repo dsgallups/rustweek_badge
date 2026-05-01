@@ -14,6 +14,8 @@ use embedded_hal::{
 pub fn test_display<Spi, Dc, Rst, Busy, D>(
     display: &mut Display420Mono<Spi>,
     epd: &mut Ssd1683<Spi, Dc, Rst, Busy, D>,
+    toggled: bool,
+    full_refresh: bool,
 ) where
     Spi: SpiDevice,
     Spi::Error: Format,
@@ -27,7 +29,13 @@ pub fn test_display<Spi, Dc, Rst, Busy, D>(
         defmt::error!("EPD clear failed: {:?}", e);
     }
 
-    if let Err(e) = Line::new(Point::new(0, 0), Point::new(399, 299))
+    let line = if toggled {
+        Line::new(Point::new(0, 0), Point::new(399, 299))
+    } else {
+        Line::new(Point::new(399, 0), Point::new(0, 299))
+    };
+
+    if let Err(e) = line
         .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
         .draw(display)
     {
@@ -40,16 +48,27 @@ pub fn test_display<Spi, Dc, Rst, Busy, D>(
         info!("EPD flush 15000 bytes OK");
     }
 
-    if let Err(e) = epd.refresh() {
+    let result = if full_refresh {
+        epd.refresh()
+    } else {
+        epd.refresh_partial()
+    };
+
+    if let Err(e) = result {
         defmt::error!("EPD refresh failed: {:?}", e);
     } else {
         info!("EPD refresh complete");
     }
-
-    if let Err(e) = epd.sleep() {
-        defmt::error!("EPD sleep failed: {:?}", e);
+    if let Err(e) = display.flush_to_ram2(epd) {
+        defmt::error!("EPD Ram2 flush failed: {:?}", e);
     } else {
-        info!("EPD diagonal drawn + sleeping");
-    }
-    //
+        info!("EPD Ram2 flush OK");
+    };
+
+    // if you sleep, you need to reinit
+    // if let Err(e) = epd.sleep() {
+    //     defmt::error!("EPD sleep failed: {:?}", e);
+    // } else {
+    //     info!("EPD diagonal drawn + sleeping");
+    // }
 }
