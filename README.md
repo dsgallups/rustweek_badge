@@ -14,6 +14,7 @@ Target: `riscv32imac-unknown-none-elf`
 
 ### Display (2color/tri-color)
 - Adafruit page: [https://www.adafruit.com/product/6381]
+- [https://cdn-shop.adafruit.com/product-files/6381/P6381+C22265-001+datasheet+ZJY400300-042CAAMFGN.pdf]
 - Tricolor DigiKey page: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/6382/27525826]
 - Tricolor Datasheet: [https://cdn-shop.adafruit.com/product-files/6382/6382+C22266-001+datasheet+ZJY400300-042CABMFGN-R.pdf]
 - 

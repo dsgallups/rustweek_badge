@@ -7,18 +7,30 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+use core::cell::RefCell;
+
 use bevy_app::{App, Update};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
 use defmt::info;
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_graphics::prelude::*;
+use embedded_graphics::primitives::{Line, PrimitiveStyle};
+use embedded_hal_bus::spi::RefCellDevice;
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::delay::Delay;
+use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
 use esp_hal::main;
 use esp_hal::rmt::{PulseCode, Rmt, TxChannelConfig, TxChannelCreator};
+use esp_hal::spi::Mode as SpiMode;
+use esp_hal::spi::master::{Config as SpiConfig, Spi};
 use esp_hal::time::{Duration, Instant, Rate};
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
+use rustweek_badge::epd::display420::Display420Mono;
+use rustweek_badge::epd::sram23k256::Sram23k256;
+use rustweek_badge::epd::ssd1683::{HEIGHT, Ssd1683, WIDTH};
 
 extern crate alloc;
 
@@ -73,6 +85,86 @@ fn main() -> ! {
     let mut power = Output::new(neopixel_power, Level::High, OutputConfig::default());
     power.set_high();
 
+    // initialized by physical order
+    //
+    // GPIO6 - A2
+    let epd_busy = Input::new(
+        peripherals.GPIO6,
+        InputConfig::default().with_pull(Pull::None),
+    );
+    // GPIO5 - A3
+    let sram_cs = Output::new(peripherals.GPIO5, Level::High, OutputConfig::default());
+
+    // two pin gap
+
+    {
+        info!("EPD: configuring SPI2");
+        let spi = Spi::new(
+            peripherals.SPI2,
+            SpiConfig::default()
+                .with_frequency(Rate::from_mhz(4))
+                .with_mode(SpiMode::_0),
+        )
+        .expect("SPI2 config")
+        .with_sck(peripherals.GPIO21)
+        .with_mosi(peripherals.GPIO22)
+        .with_miso(peripherals.GPIO23);
+
+        let spi_bus = RefCell::new(spi);
+
+        let epd_dc = Output::new(peripherals.GPIO17, Level::High, OutputConfig::default());
+        let epd_cs = Output::new(peripherals.GPIO16, Level::High, OutputConfig::default());
+
+        // this one is on the right hand side
+        let epd_rst = Output::new(peripherals.GPIO18, Level::High, OutputConfig::default());
+
+        let epd_spi = RefCellDevice::new(&spi_bus, epd_cs, Delay::new()).expect("epd device");
+        let sram_spi = RefCellDevice::new(&spi_bus, sram_cs, Delay::new()).expect("sram device");
+
+        let mut sram = Sram23k256::new(sram_spi);
+        if let Err(e) = sram.set_sequential_mode() {
+            defmt::error!("SRAM seq mode failed: {:?}", e);
+        } else {
+            info!("SRAM seq mode OK");
+        }
+
+        let mut epd = Ssd1683::new(epd_spi, epd_dc, epd_rst, epd_busy, Delay::new());
+        match epd.init() {
+            Ok(()) => info!("EPD init OK ({} x {})", WIDTH, HEIGHT),
+            Err(e) => defmt::error!("EPD init failed: {:?}", e),
+        }
+
+        let mut display = Display420Mono::new(&mut sram);
+        if let Err(e) = display.clear_to(BinaryColor::Off) {
+            defmt::error!("EPD clear failed: {:?}", e);
+        }
+
+        if let Err(e) = Line::new(Point::new(0, 0), Point::new(399, 299))
+            .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+            .draw(&mut display)
+        {
+            defmt::error!("EPD draw failed: {:?}", e);
+        }
+
+        if let Err(e) = display.flush_to_panel(&mut epd) {
+            defmt::error!("EPD flush failed: {:?}", e);
+        } else {
+            info!("EPD flush 15000 bytes OK");
+        }
+
+        if let Err(e) = epd.refresh() {
+            defmt::error!("EPD refresh failed: {:?}", e);
+        } else {
+            info!("EPD refresh complete");
+        }
+
+        if let Err(e) = epd.sleep() {
+            defmt::error!("EPD sleep failed: {:?}", e);
+        } else {
+            info!("EPD diagonal drawn + sleeping");
+        }
+    }
+
     // let rmt = peripherals
     // let rmt = Rmt::new(peripherals.GP)
 
@@ -105,10 +197,10 @@ fn main() -> ! {
             Err((_, c)) => c,
         };
         // neopixel.toggle();
-        info!("Hello world!");
+        // info!("Hello world!");
         let delay_start = Instant::now();
         while delay_start.elapsed() < Duration::from_millis(500) {}
-        app.update();
+        // app.update();
         transmit_color = !transmit_color;
     }
 
