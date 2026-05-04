@@ -159,6 +159,17 @@ fn main() -> ! {
     let mut toggled = false;
     let mut full_refresh = true;
 
+    if let Err(e) = display.clear_to(BinaryColor::Off) {
+        defmt::error!("EPD clear failed: {:?}", e);
+    }
+    _ = display.flush_to_panel(&mut epd);
+    _ = epd.refresh();
+
+    let delay_start = Instant::now();
+    while delay_start.elapsed() < Duration::from_millis(7000) {}
+
+    info!("Beginning loop!");
+
     loop {
         let color = if transmit_color { &color } else { &off };
         tx = match tx.transmit(color) {

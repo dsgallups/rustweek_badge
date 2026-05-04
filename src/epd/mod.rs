@@ -1,5 +1,6 @@
 pub mod display420;
 pub mod display420tri;
+pub mod lut;
 pub mod sram23k256;
 pub mod ssd1683;
 

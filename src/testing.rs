@@ -25,9 +25,9 @@ pub fn test_display<Spi, Dc, Rst, Busy, D>(
     Busy: InputPin<Error = Dc::Error>,
     D: DelayNs,
 {
-    if let Err(e) = display.clear_to(BinaryColor::Off) {
-        defmt::error!("EPD clear failed: {:?}", e);
-    }
+    // if let Err(e) = display.clear_to(BinaryColor::Off) {
+    //     defmt::error!("EPD clear failed: {:?}", e);
+    // }
 
     let line = if toggled {
         Line::new(Point::new(0, 0), Point::new(399, 299))
@@ -65,7 +65,7 @@ pub fn test_display<Spi, Dc, Rst, Busy, D>(
         info!("EPD Ram2 flush OK");
     };
 
-    // if you sleep, you need to reinit
+    // // if you sleep, you need to reinit
     // if let Err(e) = epd.sleep() {
     //     defmt::error!("EPD sleep failed: {:?}", e);
     // } else {
