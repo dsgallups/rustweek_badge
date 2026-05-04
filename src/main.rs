@@ -168,7 +168,7 @@ fn main() -> ! {
             Err((_, c)) => c,
         };
         info!("looping around. toggled: {}", toggled);
-        test_display(&mut display, &mut epd, toggled, full_refresh);
+        // test_display(&mut display, &mut epd, toggled, full_refresh);
         // neopixel.toggle();
         // info!("Hello world!");
         let delay_start = Instant::now();
