@@ -19,3 +19,5 @@ SCRATCH.md
 
 # Ignore .DS_Store file in mac
 **/.DS_Store
+
+**/.claude
