@@ -12,16 +12,13 @@ mod command;
 mod consts;
 mod light;
 
-use bt_hci::controller::ExternalController;
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::timer::timg::TimerGroup;
-use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
-use trouble_host::prelude::*;
 
 extern crate alloc;
 
@@ -70,11 +67,12 @@ async fn main(spawner: Spawner) -> ! {
     let _ = spawner;
 
     spawner.spawn(light::run_light(peripherals.RMT, peripherals.GPIO9).unwrap());
-    spawner.spawn(bluetooth::listen_to_bluetooth(peripherals.BT).unwrap());
+    bluetooth::init(&spawner, peripherals.BT).await;
+    info!("All services initialized!");
 
     loop {
-        info!("Hello world!");
-        Timer::after(Duration::from_secs(1)).await;
+        Timer::after(Duration::from_secs(60)).await;
+        info!("Ran for a minute!");
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples

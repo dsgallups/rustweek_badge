@@ -1,23 +1,14 @@
-mod server;
-
 use crate::{
     CONNECTIONS_MAX, L2CAP_CHANNELS_MAX,
-    bluetooth::server::Server,
-    consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME},
+    consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME, RX_CHAR_UUID, SERVICE_UUID},
 };
 use bt_hci::{controller::ExternalController, uuid::appearance};
-use defmt::panic;
+use defmt::{info, panic};
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
 use esp_hal::peripherals::BT;
 use esp_radio::ble::controller::BleConnector;
 use static_cell::StaticCell;
-use trouble_host::{
-    Address, Host, HostResources, Stack,
-    gap::{GapConfig, PeripheralConfig},
-    peripheral::Peripheral,
-    prelude::{DefaultPacketPool, Runner},
-};
+use trouble_host::prelude::*;
 
 type BleController = ExternalController<BleConnector<'static>, 20>;
 
@@ -40,9 +31,7 @@ pub async fn init(spawner: &Spawner, bluetooth: BT<'static>) {
     );
 
     let Host {
-        mut peripheral,
-        mut runner,
-        ..
+        peripheral, runner, ..
     } = stack.build();
 
     let server = SERVER.init(
@@ -55,27 +44,6 @@ pub async fn init(spawner: &Spawner, bluetooth: BT<'static>) {
 
     spawner.spawn(bluetooth_runner_task(runner).unwrap());
     spawner.spawn(bluetooth_app_task(peripheral, server).unwrap());
-
-    // join(
-    //     async {
-    //         loop {
-    //             if let Err(e) = runner.run().await {
-    //                 panic!("BLE RUNNER ERROR {}", e);
-    //             }
-    //         }
-    //     },
-    //     async {
-    //         //todo
-    //     },
-    // )
-    // .await;
-
-    // GATT (Generic Attribute File) server. This defines how BLE devices exchange data once
-    // they're connected. It holds the data and exposes it to other devices.
-    //
-    // Servers host the data and are given commands. clients push data onto the server.
-
-    // let server = Server
 }
 
 #[embassy_executor::task]
@@ -87,11 +55,97 @@ async fn bluetooth_runner_task(
     }
 }
 
+#[gatt_server]
+pub struct Server {
+    cmd_service: CmdService,
+}
+
+#[gatt_service(uuid = SERVICE_UUID)]
+struct CmdService {
+    #[characteristic(uuid = RX_CHAR_UUID, write_without_response)]
+    rx: [u8; 32],
+}
+
 #[embassy_executor::task]
 async fn bluetooth_app_task(
     mut peripheral: Peripheral<'static, BleController, DefaultPacketPool>,
     server: &'static Server<'static>,
 ) {
+    let mut advertisement_data = [0u8; 31];
+
+    let length = AdStructure::encode_slice(
+        &[
+            // means
+            // 1. I'm visible indefinitely
+            // 2. dont u try that classic bluetooth bullshit on me. fk u
+            AdStructure::Flags(LE_GENERAL_DISCOVERABLE | BR_EDR_NOT_SUPPORTED),
+            AdStructure::CompleteLocalName(DEVICE_NAME.as_bytes()),
+        ],
+        &mut advertisement_data[..],
+    )
+    .unwrap();
+
+    // let rx_handle = server.cmd_service.rx.handle;
+
+    loop {
+        info!("Advertising as '{}'", DEVICE_NAME);
+
+        let advertiser = peripheral
+            .advertise(
+                &Default::default(),
+                Advertisement::ConnectableScannableUndirected {
+                    adv_data: &advertisement_data[..length],
+                    scan_data: &[],
+                },
+            )
+            .await
+            .unwrap();
+
+        let conn = advertiser
+            .accept()
+            .await
+            .unwrap()
+            .with_attribute_server(server)
+            .unwrap();
+
+        info!("Connected to client!");
+
+        loop {
+            match conn.next().await {
+                GattConnectionEvent::Disconnected { reason } => {
+                    info!("(GATT) Disconnected: {:?}", reason);
+                }
+                GattConnectionEvent::Gatt { event: _ } => {
+                    info!("(GATT) Event received");
+                }
+                GattConnectionEvent::ConnectionParamsUpdated {
+                    conn_interval: _,
+                    peripheral_latency: _,
+                    supervision_timeout: _,
+                } => {
+                    info!("(GATT) Connection params update received");
+                }
+                GattConnectionEvent::DataLengthUpdated {
+                    max_tx_octets: _,
+                    max_tx_time: _,
+                    max_rx_octets: _,
+                    max_rx_time: _,
+                } => {
+                    info!("(GATT) Data length updated");
+                }
+                GattConnectionEvent::PhyUpdated {
+                    tx_phy: _,
+                    rx_phy: _,
+                } => {
+                    info!("(GATT) Phy??w tf is this updated");
+                }
+                GattConnectionEvent::RequestConnectionParams(_params) => {
+                    info!("(GATT) RequestConnectionParams recieved");
+                }
+            }
+        }
+    }
+
     //todo
 }
 
