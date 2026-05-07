@@ -12,6 +12,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
+use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
@@ -60,6 +61,10 @@ async fn main(spawner: Spawner) -> ! {
     let mut resources: HostResources<DefaultPacketPool, CONNECTIONS_MAX, L2CAP_CHANNELS_MAX> =
         HostResources::new();
     let _stack = trouble_host::new(ble_controller, &mut resources);
+
+    let neopixel_power = peripherals.GPIO20;
+    let mut power = Output::new(neopixel_power, Level::High, OutputConfig::default());
+    power.set_high();
 
     // TODO: Spawn some tasks
     let _ = spawner;
