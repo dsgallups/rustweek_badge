@@ -1,4 +1,9 @@
-# Notes
+# Overview
+
+- `/badge`: embedded device code
+- `/mobile`: dioxus embedded device code
+
+# Badge Notes 
 
 Target: `riscv32imac-unknown-none-elf`
 
@@ -39,3 +44,7 @@ Target: `riscv32imac-unknown-none-elf`
 | EPD RST | 18 |
 | EPD BUSY | 6 | 
 | SRAM CS (SRCS) | 5 |
+
+
+# Mobile notes
+Reference for platform support: <https://dioxuslabs.com/learn/0.7/guides/platforms/mobile>
