@@ -7,6 +7,8 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+mod light;
+
 use bt_hci::controller::ExternalController;
 use defmt::info;
 use embassy_executor::Spawner;
@@ -17,6 +19,8 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_radio::ble::controller::BleConnector;
 use panic_rtt_target as _;
 use trouble_host::prelude::*;
+
+use crate::light::run_light;
 
 extern crate alloc;
 
@@ -68,6 +72,8 @@ async fn main(spawner: Spawner) -> ! {
 
     // TODO: Spawn some tasks
     let _ = spawner;
+
+    spawner.spawn(run_light(peripherals.RMT, peripherals.GPIO9).unwrap());
 
     loop {
         info!("Hello world!");
