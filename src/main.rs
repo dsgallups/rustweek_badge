@@ -8,16 +8,16 @@
 #![deny(clippy::large_stack_frames)]
 
 mod epd;
+mod epd_old;
 mod testing;
 
-use core::cell::RefCell;
-
-use crate::epd::display420::Display420Mono;
-use crate::epd::sram23k256::Sram23k256;
-use crate::epd::ssd1683::{HEIGHT, Ssd1683, WIDTH};
+use crate::epd_old::display420::Display420Mono;
+use crate::epd_old::sram23k256::Sram23k256;
+use crate::epd_old::ssd1683::{HEIGHT, Ssd1683, WIDTH};
 use bevy_app::{App, Update};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
+use core::cell::RefCell;
 use defmt::info;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
