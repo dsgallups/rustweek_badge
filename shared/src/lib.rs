@@ -1,5 +1,9 @@
 #![no_std]
 
+/// Dont change these.
+pub const SERVICE_UUID: u128 = 12897126749781238;
+pub const RX_CHAR_UUID: u128 = 12847126749781238;
+
 use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Archive)]

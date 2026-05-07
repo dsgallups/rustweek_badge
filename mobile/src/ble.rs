@@ -5,8 +5,8 @@ use std::time::Duration;
 use uuid::Uuid;
 
 pub const DEVICE_NAME: &str = "nameyourbadge";
-pub const SERVICE_UUID: Uuid = Uuid::from_u128(12_897_126_749_781_238);
-pub const RX_CHAR_UUID: Uuid = Uuid::from_u128(12_847_126_749_781_238);
+pub const SERVICE_UUID: Uuid = Uuid::from_u128(shared::SERVICE_UUID);
+pub const RX_CHAR_UUID: Uuid = Uuid::from_u128(shared::RX_CHAR_UUID);
 
 #[derive(Clone, Debug)]
 pub struct Discovered {

@@ -12,6 +12,3 @@ pub const CONNECTIONS_MAX: usize = 1;
 /// The Logical Link Control and Adaptation Protocol (L2CAP) provides the data transport layer for BLE.
 /// GATT and other protocols run on top of L2CAP.
 pub const L2CAP_CHANNELS_MAX: usize = 2;
-
-pub const SERVICE_UUID: u128 = 12897126749781238;
-pub const RX_CHAR_UUID: u128 = 12847126749781238;

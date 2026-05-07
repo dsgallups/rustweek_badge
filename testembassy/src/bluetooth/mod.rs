@@ -1,12 +1,13 @@
 use crate::{
     CONNECTIONS_MAX, L2CAP_CHANNELS_MAX,
-    consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME, RX_CHAR_UUID, SERVICE_UUID},
+    consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME},
 };
 use bt_hci::{controller::ExternalController, uuid::appearance};
 use defmt::{info, panic};
 use embassy_executor::Spawner;
 use esp_hal::peripherals::BT;
 use esp_radio::ble::controller::BleConnector;
+use shared::{RX_CHAR_UUID, SERVICE_UUID};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
