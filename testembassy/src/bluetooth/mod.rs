@@ -1,3 +1,5 @@
+mod server;
+
 use crate::{CONNECTIONS_MAX, L2CAP_CHANNELS_MAX, consts::BLUETOOTH_MAC_ADDRESS};
 use bt_hci::controller::ExternalController;
 use embassy_executor::Spawner;
@@ -27,8 +29,7 @@ pub fn init(spawner: &Spawner, bluetooth: BT<'static>) {
     //
     // Servers host the data and are given commands. clients push data onto the server.
 
-    let server = Server
-
+    // let server = Server
 }
 
 #[embassy_executor::task]
