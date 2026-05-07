@@ -4,7 +4,6 @@ use futures_timer::Delay;
 use std::time::Duration;
 use uuid::Uuid;
 
-pub const DEVICE_NAME: &str = "nameyourbadge";
 pub const SERVICE_UUID: Uuid = Uuid::from_u128(shared::SERVICE_UUID);
 pub const RX_CHAR_UUID: Uuid = Uuid::from_u128(shared::RX_CHAR_UUID);
 
