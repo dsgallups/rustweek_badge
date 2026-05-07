@@ -62,10 +62,9 @@ smoltcp = { version = "0.13.0", default-features = false, features = [
   "socket-udp",
 ] }
 trouble-host = { version = "0.6.0", features = ["gatt"] }
-
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
-embassy-sync = "0.8.0"
+embassy-sync = "0.7"
 
 
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html
