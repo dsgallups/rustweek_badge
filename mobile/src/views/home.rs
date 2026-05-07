@@ -33,7 +33,7 @@ pub fn Home() -> Element {
                     return;
                 }
             };
-            match ble::scan_for_badge(&adapter, Duration::from_secs(5)).await {
+            match ble::scan_all(&adapter, Duration::from_secs(5)).await {
                 Ok(found) => {
                     devices.set(found);
                     status.set(Status::Idle);

@@ -1,13 +1,18 @@
 [application]
+name = "mobile"
+
+[bundle]
+identifier = "dsgallups.badge"
+
+[permissions]
+bluetooth = { description = "Used to connect to your badge." }
 
 [web.app]
-
 # HTML title tag content
 title = "mobile"
 
 # include `assets` in web platform
 [web.resource]
-
 # Additional CSS style files
 style = []
 
@@ -15,7 +20,6 @@ style = []
 script = []
 
 [web.resource.dev]
-
 # Javascript code file
 # serve: [dev-server] only
 script = []

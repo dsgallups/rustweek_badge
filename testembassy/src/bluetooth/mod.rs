@@ -114,6 +114,7 @@ async fn bluetooth_app_task(
             match conn.next().await {
                 GattConnectionEvent::Disconnected { reason } => {
                     info!("(GATT) Disconnected: {:?}", reason);
+                    break;
                 }
                 GattConnectionEvent::Gatt { event: _ } => {
                     info!("(GATT) Event received");

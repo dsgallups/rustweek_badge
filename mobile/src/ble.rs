@@ -26,7 +26,7 @@ pub async fn first_adapter() -> Result<Adapter, String> {
         .ok_or_else(|| "no BLE adapter available".to_string())
 }
 
-pub async fn scan_for_badge(adapter: &Adapter, dwell: Duration) -> Result<Vec<Discovered>, String> {
+pub async fn scan_all(adapter: &Adapter, dwell: Duration) -> Result<Vec<Discovered>, String> {
     adapter
         .start_scan(ScanFilter::default())
         .await
@@ -36,18 +36,19 @@ pub async fn scan_for_badge(adapter: &Adapter, dwell: Duration) -> Result<Vec<Di
 
     let mut found = Vec::new();
     for p in adapter.peripherals().await.map_err(|e| e.to_string())? {
-        let Ok(Some(props)) = p.properties().await else {
-            continue;
-        };
-        if props.local_name.as_deref() != Some(DEVICE_NAME) {
-            continue;
-        }
+        let props = p.properties().await.ok().flatten();
+        let name = props
+            .as_ref()
+            .and_then(|p| p.local_name.clone())
+            .unwrap_or_else(|| "(unnamed)".to_string());
+        let rssi = props.as_ref().and_then(|p| p.rssi);
         found.push(Discovered {
             peripheral: p,
-            name: props.local_name.unwrap_or_default(),
-            rssi: props.rssi,
+            name,
+            rssi,
         });
     }
+    found.sort_by(|a, b| b.rssi.unwrap_or(i16::MIN).cmp(&a.rssi.unwrap_or(i16::MIN)));
     Ok(found)
 }
 
