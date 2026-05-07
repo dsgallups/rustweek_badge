@@ -1,8 +1,9 @@
 use embassy_time::{Duration, Timer};
 use esp_hal::{
+    Blocking,
     gpio::Level,
     peripherals::{GPIO9, RMT},
-    rmt::{PulseCode, Rmt, TxChannelConfig, TxChannelCreator},
+    rmt::{Channel, PulseCode, Rmt, Tx, TxChannelConfig, TxChannelCreator},
     time::Rate,
 };
 
@@ -14,24 +15,25 @@ pub async fn run_light(rmt: RMT<'static>, gpio9: GPIO9<'static>) {
 
     let off = encode(0, 0, 0);
 
-    let mut transmit_color = true;
-
     let mut tx = rmt
         .channel0
         .configure_tx(&TxChannelConfig::default().with_clk_divider(1))
         .unwrap()
         .with_pin(gpio9);
+    tx = set_color(tx, &color);
+    // Timer::after(Duration::from_secs(5)).await;
+    // set_color(tx, &off);
+}
 
-    loop {
-        let color = if transmit_color { &color } else { &off };
-        tx = match tx.transmit(color) {
-            Ok(txn) => match txn.wait() {
-                Ok(c) | Err((_, c)) => c,
-            },
-            Err((_, c)) => c,
-        };
-        Timer::after(Duration::from_millis(500)).await;
-        transmit_color = !transmit_color;
+fn set_color<'c>(
+    tx: Channel<'c, Blocking, Tx>,
+    color: &[PulseCode; 25],
+) -> Channel<'c, Blocking, Tx> {
+    match tx.transmit(color) {
+        Ok(txn) => match txn.wait() {
+            Ok(c) | Err((_, c)) => c,
+        },
+        Err((_, c)) => c,
     }
 }
 

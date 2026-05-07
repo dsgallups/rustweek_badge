@@ -88,8 +88,6 @@ async fn bluetooth_app_task(
     // let rx_handle = server.cmd_service.rx.handle;
 
     loop {
-        info!("Advertising as '{}'", DEVICE_NAME);
-
         let advertiser = peripheral
             .advertise(
                 &Default::default(),
@@ -100,6 +98,7 @@ async fn bluetooth_app_task(
             )
             .await
             .unwrap();
+        info!("Advertising as '{}'", DEVICE_NAME);
 
         let conn = advertiser
             .accept()
