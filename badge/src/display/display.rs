@@ -1,22 +1,14 @@
-use core::cell::RefCell;
-
-use defmt::info;
+use defmt::error;
 use embedded_hal_bus::spi::RefCellDevice;
 use esp_hal::{
     Blocking,
     delay::Delay,
-    gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull},
-    peripherals::{GPIO5, GPIO6, GPIO16, GPIO17, GPIO18, GPIO21, GPIO22, GPIO23, SPI2},
-    spi::{
-        Mode as SpiMode,
-        master::{Config as SpiConfig, Spi},
-    },
-    time::Rate,
+    gpio::{Input, Output},
+    spi::master::Spi,
 };
 
 use crate::display::drivers::{
     display420tri::{Display420Tri, TriColor},
-    sram23k256::Sram23k256,
     ssd1683::Ssd1683,
 };
 
@@ -56,21 +48,20 @@ impl<'other_io, 'spi> Display<'other_io, 'spi> {
     {
         &mut self.display
     }
-    pub fn controller(
-        &self,
-    ) -> &Ssd1683<
-        RefCellDevice<'other_io, Spi<'spi, Blocking>, Output<'other_io>, Delay>,
-        Output<'other_io>,
-        Output<'other_io>,
-        Input<'other_io>,
-        Delay,
-    > {
-        &self.controller
+
+    pub fn init(&mut self) {
+        if let Err(e) = self.controller.init() {
+            error!("controller init failed: {:?}", e);
+        }
     }
 
-    // pub fn clear(&self) {
-    //     self.display.clear_to(TriColor::Black);
-    // }
-
-    pub fn do_thing(&self) {}
+    pub fn flush(&mut self) {
+        if let Err(e) = self.display.flush_to_panel(&mut self.controller) {
+            error!("flush_to_panel failed: {:?}", e);
+            return;
+        }
+        if let Err(e) = self.controller.refresh() {
+            error!("refresh failed: {:?}", e);
+        }
+    }
 }

@@ -1,6 +1,7 @@
 use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter, WriteType};
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures_timer::Delay;
+use shared::BadgeCommand;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -63,13 +64,15 @@ pub async fn disconnect(p: &Peripheral) -> Result<(), String> {
     p.disconnect().await.map_err(|e| e.to_string())
 }
 
-pub async fn write_rgb(p: &Peripheral, r: u8, g: u8, b: u8) -> Result<(), String> {
+pub async fn write_command(p: &Peripheral, cmd: &BadgeCommand) -> Result<(), String> {
     let chars = p.characteristics();
     let rx = chars
         .iter()
         .find(|c| c.uuid == RX_CHAR_UUID)
         .ok_or_else(|| "rx characteristic not found".to_string())?;
-    p.write(rx, &[0x01, r, g, b], WriteType::WithoutResponse)
+    let bytes =
+        rkyv::to_bytes::<rkyv::rancor::Error>(cmd).map_err(|e| format!("encode: {e}"))?;
+    p.write(rx, &bytes, WriteType::WithoutResponse)
         .await
         .map_err(|e| e.to_string())
 }

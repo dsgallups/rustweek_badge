@@ -2,6 +2,7 @@ use crate::ble;
 use btleplug::api::Peripheral as _;
 use btleplug::platform::Peripheral;
 use dioxus::prelude::*;
+use shared::{BadgeCommand, Color, DrawCommand, LightCommand, Point};
 use std::time::Duration;
 
 #[derive(Clone, PartialEq)]
@@ -19,8 +20,12 @@ pub fn Home() -> Element {
     let mut devices = use_signal(Vec::<ble::Discovered>::new);
     let mut connected = use_signal(|| Option::<Peripheral>::None);
     let r = use_signal(|| 0u8);
-    let g = use_signal(|| 128u8);
-    let b = use_signal(|| 255u8);
+    let g = use_signal(|| 4u8);
+    let b = use_signal(|| 0u8);
+
+    let draw_color = use_signal(|| Color::Black);
+    let line_start = use_signal(|| Point { x: 20, y: 20 });
+    let line_end = use_signal(|| Point { x: 380, y: 280 });
 
     let scan = move |_| {
         spawn(async move {
@@ -33,7 +38,7 @@ pub fn Home() -> Element {
                     return;
                 }
             };
-            match ble::scan_all(&adapter, Duration::from_secs(5)).await {
+            match ble::scan_all(&adapter, Duration::from_secs(2)).await {
                 Ok(found) => {
                     devices.set(found);
                     status.set(Status::Idle);
@@ -59,23 +64,51 @@ pub fn Home() -> Element {
     let disconnect = move |_| {
         spawn(async move {
             if let Some(p) = connected().clone() {
+                connected.set(None);
                 let _ = ble::disconnect(&p).await;
+            } else {
+                connected.set(None);
             }
-            connected.set(None);
             status.set(Status::Idle);
         });
     };
 
-    let send_rgb = move |_| {
+    let send = move |cmd: BadgeCommand| {
         spawn(async move {
             let Some(p) = connected().clone() else {
                 return;
             };
-            if let Err(e) = ble::write_rgb(&p, r(), g(), b()).await {
+            if let Err(e) = ble::write_command(&p, &cmd).await {
                 status.set(Status::Error(e));
             }
         });
     };
+
+    let send_rgb = move |_| {
+        send(BadgeCommand::SetLight(LightCommand {
+            r: r(),
+            g: g(),
+            b: b(),
+        }));
+    };
+
+    let send_debug = move |_| send(BadgeCommand::Debug);
+
+    let send_clear = move |_| {
+        send(BadgeCommand::Drawing(DrawCommand::Clear {
+            color: draw_color(),
+        }));
+    };
+
+    let send_line = move |_| {
+        send(BadgeCommand::Drawing(DrawCommand::Line {
+            start: line_start(),
+            end: line_end(),
+            color: draw_color(),
+        }));
+    };
+
+    let send_flush = move |_| send(BadgeCommand::Drawing(DrawCommand::Flush));
 
     rsx! {
         div { class: "p-6 max-w-md mx-auto space-y-4",
@@ -152,6 +185,42 @@ pub fn Home() -> Element {
                         }
                     }
                 }
+
+                div { class: "border rounded p-4 space-y-3",
+                    h2 { class: "text-lg font-semibold", "Display" }
+
+                    button {
+                        class: "px-4 py-2 bg-purple-600 text-white rounded",
+                        onclick: send_debug,
+                        "Send Debug"
+                    }
+
+                    ColorChooser { value: draw_color }
+
+                    div { class: "flex gap-2",
+                        button {
+                            class: "px-4 py-2 bg-blue-600 text-white rounded flex-1",
+                            onclick: send_clear,
+                            "Clear"
+                        }
+                        button {
+                            class: "px-4 py-2 bg-amber-600 text-white rounded flex-1",
+                            onclick: send_flush,
+                            "Flush"
+                        }
+                    }
+
+                    div { class: "space-y-2",
+                        h3 { class: "font-medium", "Line" }
+                        PointEditor { label: "start", value: line_start }
+                        PointEditor { label: "end", value: line_end }
+                        button {
+                            class: "px-4 py-2 bg-green-600 text-white rounded w-full",
+                            onclick: send_line,
+                            "Draw line"
+                        }
+                    }
+                }
             }
         }
     }
@@ -174,6 +243,64 @@ fn Slider(label: String, value: Signal<u8>) -> Element {
                 oninput: move |e| {
                     if let Ok(v) = e.value().parse::<u8>() {
                         value.set(v);
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[component]
+fn ColorChooser(value: Signal<Color>) -> Element {
+    let options = [
+        ("White", Color::White),
+        ("Black", Color::Black),
+        ("Red", Color::Red),
+    ];
+    rsx! {
+        div { class: "flex gap-2",
+            for (label, color) in options {
+                button {
+                    key: "{label}",
+                    class: if value() == color {
+                        "px-3 py-1 rounded border-2 border-blue-600 bg-blue-100 flex-1"
+                    } else {
+                        "px-3 py-1 rounded border flex-1"
+                    },
+                    onclick: move |_| value.set(color),
+                    "{label}"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn PointEditor(label: String, value: Signal<Point>) -> Element {
+    rsx! {
+        div { class: "flex gap-2 items-center",
+            span { class: "text-sm w-12", "{label}" }
+            input {
+                r#type: "number",
+                class: "border rounded px-2 py-1 w-20 text-sm",
+                value: "{value().x}",
+                oninput: move |e| {
+                    if let Ok(x) = e.value().parse::<i16>() {
+                        let mut p = value();
+                        p.x = x;
+                        value.set(p);
+                    }
+                },
+            }
+            input {
+                r#type: "number",
+                class: "border rounded px-2 py-1 w-20 text-sm",
+                value: "{value().y}",
+                oninput: move |e| {
+                    if let Ok(y) = e.value().parse::<i16>() {
+                        let mut p = value();
+                        p.y = y;
+                        value.set(p);
                     }
                 },
             }

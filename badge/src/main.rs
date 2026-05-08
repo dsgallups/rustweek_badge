@@ -17,7 +17,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::gpio::{Input, Level, Output, OutputConfig};
 use esp_hal::timer::timg::TimerGroup;
 use panic_rtt_target as _;
 
@@ -38,10 +38,10 @@ esp_bootloader_esp_idf::esp_app_desc!();
 )]
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
-    // generator version: 1.3.0
-    // generator parameters: --chip esp32c6 -o unstable-hal -o alloc -o wifi -o embassy -o ble-trouble -o probe-rs -o defmt -o panic-rtt-target -o zed -o nightly-aarch64-apple-darwin
+    // // generator version: 1.3.0
+    // // generator parameters: --chip esp32c6 -o unstable-hal -o alloc -o wifi -o embassy -o ble-trouble -o probe-rs -o defmt -o panic-rtt-target -o zed -o nightly-aarch64-apple-darwin
 
-    // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
+    // // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
     rtt_target::rtt_init_defmt!();
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -56,7 +56,7 @@ async fn main(spawner: Spawner) -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
-    info!("Embassy initialized!");
+    // info!("Embassy initialized!");
 
     let (mut _wifi_controller, _interfaces) =
         esp_radio::wifi::new(peripherals.WIFI, Default::default())
@@ -90,6 +90,4 @@ async fn main(spawner: Spawner) -> ! {
         Timer::after(Duration::from_secs(60)).await;
         info!("Ran for a minute!");
     }
-
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples
 }

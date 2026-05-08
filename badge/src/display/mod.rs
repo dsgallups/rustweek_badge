@@ -1,15 +1,18 @@
-mod drivers;
+pub mod drivers;
 
 #[allow(clippy::module_inception)]
 mod display;
 
 use core::cell::RefCell;
 
-use defmt::info;
+use defmt::{error, info};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embedded_graphics::{
+    prelude::*,
+    primitives::{Line, PrimitiveStyle},
+};
 use embedded_hal_bus::spi::RefCellDevice;
 use esp_hal::{
-    Blocking,
     delay::Delay,
     gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull},
     peripherals::{GPIO5, GPIO6, GPIO16, GPIO17, GPIO18, GPIO21, GPIO22, GPIO23, SPI2},
@@ -22,8 +25,8 @@ use esp_hal::{
 
 pub static DRAW_CHANNEL: Channel<CriticalSectionRawMutex, DrawCommand, 4> = Channel::new();
 
-use drivers::sram23k256::Sram23k256;
-use shared::{DrawCommand, LightCommand};
+use drivers::{display420tri::TriColor, sram23k256::Sram23k256};
+use shared::{Color, DrawCommand};
 
 use crate::display::{
     display::Display,
@@ -113,29 +116,50 @@ pub async fn run_display(pins: DisplayPins) {
     );
 
     let mut device = Display::new(display, display_controller);
+    device.init();
+    info!("Display initialized");
 
     loop {
-        display_loop(&mut device).await;
+        let command = DRAW_CHANNEL.receive().await;
+        handle_command(&mut device, command);
     }
 }
 
-async fn display_loop<'other_io, 'spi>(display: &mut Display<'other_io, 'spi>) {
-    let command = DRAW_CHANNEL.receive().await;
-
+fn handle_command(display: &mut Display<'_, '_>, command: DrawCommand) {
     match command {
-        DrawCommand::Line => {
-            todo!()
+        DrawCommand::Line { start, end, color } => {
+            let line = Line::new(
+                Point::new(start.x as i32, start.y as i32),
+                Point::new(end.x as i32, end.y as i32),
+            );
+            if let Err(e) = line
+                .into_styled(PrimitiveStyle::with_stroke(tri_from(color), 1))
+                .draw(display.display())
+            {
+                error!("line draw failed: {:?}", e);
+            }
+            info!("(DISPLAY) Line command performed!");
         }
-        DrawCommand::Clear => {
-            display
-                .display()
-                .clear_to(drivers::display420tri::TriColor::Black)
-                .unwrap();
+        DrawCommand::Debug => {
+            info!("(DISPLAY) Executing debug!");
+        }
+        DrawCommand::Clear { color } => {
+            if let Err(e) = display.display().clear_to(tri_from(color)) {
+                error!("(DISPLAY) clear failed: {:?}", e);
+            }
+            info!("(DISPLAY) Clear command performed!");
         }
         DrawCommand::Flush => {
-            //todo!()
+            info!("(DISPLAY) Flush command performed!");
+            display.flush();
         }
     }
+}
 
-    todo!()
+fn tri_from(c: Color) -> TriColor {
+    match c {
+        Color::White => TriColor::White,
+        Color::Black => TriColor::Black,
+        Color::Red => TriColor::Red,
+    }
 }
