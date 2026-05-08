@@ -21,6 +21,8 @@ use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::timer::timg::TimerGroup;
 use panic_rtt_target as _;
 
+use crate::display::DisplayPins;
+
 extern crate alloc;
 
 pub const CONNECTIONS_MAX: usize = 1;
@@ -64,11 +66,24 @@ async fn main(spawner: Spawner) -> ! {
     let mut power = Output::new(neopixel_power, Level::High, OutputConfig::default());
     power.set_high();
 
-    // TODO: Spawn some tasks
-    let _ = spawner;
-
     spawner.spawn(light::run_light(peripherals.RMT, peripherals.GPIO9).unwrap());
+
+    let display_pins = DisplayPins {
+        paper_display_busy: peripherals.GPIO6,
+        ram_chip_select: peripherals.GPIO5,
+        spi_2: peripherals.SPI2,
+        sck: peripherals.GPIO21,
+        mosi: peripherals.GPIO22,
+        miso: peripherals.GPIO23,
+        display_data_command: peripherals.GPIO17,
+        display_chip_select: peripherals.GPIO16,
+        display_reset: peripherals.GPIO18,
+    };
+
+    spawner.spawn(display::run_display(display_pins).unwrap());
+
     bluetooth::init(&spawner, peripherals.BT).await;
+
     info!("All services initialized!");
 
     loop {

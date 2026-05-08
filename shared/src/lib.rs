@@ -10,6 +10,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 pub enum BadgeCommand {
     Debug,
     SetLight(LightCommand),
+    Drawing(DrawCommand),
 }
 
 impl BadgeCommand {
@@ -28,6 +29,9 @@ pub struct LightCommand {
     pub b: u8,
 }
 
-// pub enum DrawCommand {
-
-// }
+#[derive(Debug, Clone, Serialize, Deserialize, Archive)]
+pub enum DrawCommand {
+    Line,
+    Clear,
+    Flush,
+}

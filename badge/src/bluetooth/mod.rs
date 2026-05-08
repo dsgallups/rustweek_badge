@@ -1,6 +1,7 @@
 use crate::{
     CONNECTIONS_MAX, L2CAP_CHANNELS_MAX,
     consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME},
+    display::DRAW_CHANNEL,
     light::LIGHT_CHANNEL,
 };
 use alloc::string::ToString;
@@ -9,7 +10,7 @@ use defmt::{error, info, panic};
 use embassy_executor::Spawner;
 use esp_hal::peripherals::BT;
 use esp_radio::ble::controller::BleConnector;
-use shared::{ArchivedBadgeCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
+use shared::{ArchivedBadgeCommand, DrawCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
@@ -177,6 +178,13 @@ async fn dispatch(bytes: &[u8]) {
             LIGHT_CHANNEL.send(value).await;
 
             info!("Sent light command!");
+        }
+        ArchivedBadgeCommand::Drawing(draw_command) => {
+            let value =
+                rkyv::deserialize::<DrawCommand, rkyv::rancor::Error>(draw_command).unwrap();
+
+            DRAW_CHANNEL.send(value).await;
+            info!("Sent draw command!");
         }
     }
 }

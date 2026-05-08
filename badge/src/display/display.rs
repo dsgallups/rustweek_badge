@@ -15,7 +15,9 @@ use esp_hal::{
 };
 
 use crate::display::drivers::{
-    display420tri::Display420Tri, sram23k256::Sram23k256, ssd1683::Ssd1683,
+    display420tri::{Display420Tri, TriColor},
+    sram23k256::Sram23k256,
+    ssd1683::Ssd1683,
 };
 
 pub struct Display<'other_io, 'spi> {
@@ -47,6 +49,28 @@ impl<'other_io, 'spi> Display<'other_io, 'spi> {
             controller,
         }
     }
+
+    pub fn display(
+        &mut self,
+    ) -> &mut Display420Tri<RefCellDevice<'other_io, Spi<'spi, Blocking>, Output<'other_io>, Delay>>
+    {
+        &mut self.display
+    }
+    pub fn controller(
+        &self,
+    ) -> &Ssd1683<
+        RefCellDevice<'other_io, Spi<'spi, Blocking>, Output<'other_io>, Delay>,
+        Output<'other_io>,
+        Output<'other_io>,
+        Input<'other_io>,
+        Delay,
+    > {
+        &self.controller
+    }
+
+    // pub fn clear(&self) {
+    //     self.display.clear_to(TriColor::Black);
+    // }
 
     pub fn do_thing(&self) {}
 }

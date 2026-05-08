@@ -6,6 +6,7 @@ mod display;
 use core::cell::RefCell;
 
 use defmt::info;
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embedded_hal_bus::spi::RefCellDevice;
 use esp_hal::{
     Blocking,
@@ -19,8 +20,10 @@ use esp_hal::{
     time::Rate,
 };
 
+pub static DRAW_CHANNEL: Channel<CriticalSectionRawMutex, DrawCommand, 4> = Channel::new();
+
 use drivers::sram23k256::Sram23k256;
-use static_cell::StaticCell;
+use shared::{DrawCommand, LightCommand};
 
 use crate::display::{
     display::Display,
@@ -44,7 +47,8 @@ pub struct DisplayPins {
     pub display_reset: GPIO18<'static>,
 }
 
-pub async fn init(pins: DisplayPins) {
+#[embassy_executor::task]
+pub async fn run_display(pins: DisplayPins) {
     let paper_display_busy = Input::new(
         pins.paper_display_busy,
         InputConfig::default().with_pull(Pull::None),
@@ -108,5 +112,30 @@ pub async fn init(pins: DisplayPins) {
         Delay::new(),
     );
 
-    let device = Display::new(display, display_controller);
+    let mut device = Display::new(display, display_controller);
+
+    loop {
+        display_loop(&mut device).await;
+    }
+}
+
+async fn display_loop<'other_io, 'spi>(display: &mut Display<'other_io, 'spi>) {
+    let command = DRAW_CHANNEL.receive().await;
+
+    match command {
+        DrawCommand::Line => {
+            todo!()
+        }
+        DrawCommand::Clear => {
+            display
+                .display()
+                .clear_to(drivers::display420tri::TriColor::Black)
+                .unwrap();
+        }
+        DrawCommand::Flush => {
+            //todo!()
+        }
+    }
+
+    todo!()
 }
