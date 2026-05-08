@@ -35,14 +35,14 @@ struct PlaneCache {
     dirty: bool,
 }
 
-pub struct Display420Tri<'a, SPI: SpiDevice> {
-    sram: &'a mut Sram23k256<SPI>,
+pub struct Display420Tri<SPI: SpiDevice> {
+    sram: Sram23k256<SPI>,
     black: PlaneCache,
     red: PlaneCache,
 }
 
-impl<'a, SPI: SpiDevice> Display420Tri<'a, SPI> {
-    pub fn new(sram: &'a mut Sram23k256<SPI>) -> Self {
+impl<SPI: SpiDevice> Display420Tri<SPI> {
+    pub fn new(sram: Sram23k256<SPI>) -> Self {
         Self {
             sram,
             black: PlaneCache::default(),
@@ -53,8 +53,8 @@ impl<'a, SPI: SpiDevice> Display420Tri<'a, SPI> {
     pub fn clear_to(&mut self, color: TriColor) -> Result<(), SPI::Error> {
         self.flush_caches()?;
         let (black_fill, red_fill) = encode_fill(color);
-        Self::fill_plane(self.sram, BLACK_BASE, black_fill)?;
-        Self::fill_plane(self.sram, RED_BASE, red_fill)?;
+        Self::fill_plane(&mut self.sram, BLACK_BASE, black_fill)?;
+        Self::fill_plane(&mut self.sram, RED_BASE, red_fill)?;
         self.black = PlaneCache::default();
         self.red = PlaneCache::default();
         Ok(())
@@ -75,11 +75,11 @@ impl<'a, SPI: SpiDevice> Display420Tri<'a, SPI> {
         epd.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
         epd.set_ram_address(0, 0)?;
         epd.start_write_ram1()?;
-        Self::stream_plane(self.sram, BLACK_BASE, epd)?;
+        Self::stream_plane(&mut self.sram, BLACK_BASE, epd)?;
 
         epd.set_ram_address(0, 0)?;
         epd.start_write_ram2()?;
-        Self::stream_plane(self.sram, RED_BASE, epd)?;
+        Self::stream_plane(&mut self.sram, RED_BASE, epd)?;
 
         Ok(())
     }
@@ -136,12 +136,12 @@ impl<'a, SPI: SpiDevice> Display420Tri<'a, SPI> {
 
         Self::touch(
             &mut self.black,
-            self.sram,
+            &mut self.sram,
             BLACK_BASE + off,
             mask,
             black_bit,
         )?;
-        Self::touch(&mut self.red, self.sram, RED_BASE + off, mask, red_bit)?;
+        Self::touch(&mut self.red, &mut self.sram, RED_BASE + off, mask, red_bit)?;
         Ok(())
     }
 
@@ -174,11 +174,11 @@ impl<'a, SPI: SpiDevice> Display420Tri<'a, SPI> {
 
     fn flush_caches(&mut self) -> Result<(), SPI::Error> {
         if let (Some(addr), true) = (self.black.addr, self.black.dirty) {
-            self.sram.write_byte(addr, self.black.byte)?;
+            &mut self.sram.write_byte(addr, self.black.byte)?;
             self.black.dirty = false;
         }
         if let (Some(addr), true) = (self.red.addr, self.red.dirty) {
-            self.sram.write_byte(addr, self.red.byte)?;
+            &mut self.sram.write_byte(addr, self.red.byte)?;
             self.red.dirty = false;
         }
         Ok(())
@@ -201,13 +201,13 @@ fn encode_pixel(color: TriColor) -> (bool, bool) {
     }
 }
 
-impl<SPI: SpiDevice> OriginDimensions for Display420Tri<'_, SPI> {
+impl<SPI: SpiDevice> OriginDimensions for Display420Tri<SPI> {
     fn size(&self) -> Size {
         Size::new(WIDTH as u32, HEIGHT as u32)
     }
 }
 
-impl<SPI: SpiDevice> DrawTarget for Display420Tri<'_, SPI> {
+impl<SPI: SpiDevice> DrawTarget for Display420Tri<SPI> {
     type Color = TriColor;
     type Error = SPI::Error;
 
