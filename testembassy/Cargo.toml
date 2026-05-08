@@ -17,7 +17,10 @@ esp-rtos = { version = "0.3.0", features = [
   "esp-radio",
   "esp32c6",
 ] }
-rkyv = { version = "0.8", default-features = false }
+rkyv = { version = "0.8", default-features = false, features = [
+  "alloc",
+  "bytecheck"
+] }
 shared = { path = "../shared" }
 
 defmt = "1.0.1"

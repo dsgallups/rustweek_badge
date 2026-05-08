@@ -1,13 +1,15 @@
 use crate::{
     CONNECTIONS_MAX, L2CAP_CHANNELS_MAX,
     consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME},
+    light::LIGHT_CHANNEL,
 };
+use alloc::string::ToString;
 use bt_hci::{controller::ExternalController, uuid::appearance};
-use defmt::{info, panic};
+use defmt::{error, info, panic};
 use embassy_executor::Spawner;
 use esp_hal::peripherals::BT;
 use esp_radio::ble::controller::BleConnector;
-use shared::{RX_CHAR_UUID, SERVICE_UUID};
+use shared::{ArchivedBadgeCommand, BadgeCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
@@ -86,7 +88,7 @@ async fn bluetooth_app_task(
     )
     .unwrap();
 
-    // let rx_handle = server.cmd_service.rx.handle;
+    let rx_handle = server.cmd_service.rx.handle;
 
     loop {
         let advertiser = peripheral
@@ -117,6 +119,12 @@ async fn bluetooth_app_task(
                     break;
                 }
                 GattConnectionEvent::Gatt { event } => {
+                    if let GattEvent::Write(w) = &event {
+                        if w.handle() == rx_handle {
+                            dispatch(w.data()).await;
+                        }
+                    }
+
                     info!("(GATT) Event received");
                 }
                 GattConnectionEvent::ConnectionParamsUpdated {
@@ -148,6 +156,34 @@ async fn bluetooth_app_task(
     }
 
     //todo
+}
+
+async fn dispatch(bytes: &[u8]) {
+    let archived = match rkyv::access::<ArchivedBadgeCommand, rkyv::rancor::Error>(bytes) {
+        Ok(archived) => archived,
+        Err(e) => {
+            let val = e.to_string();
+            error!("Cannot deserialize command! {}", val.as_str());
+            return;
+        }
+    };
+
+    match archived {
+        ArchivedBadgeCommand::Hello => {
+            info!("Hello!");
+        }
+        ArchivedBadgeCommand::SetLight(light) => {
+            LIGHT_CHANNEL
+                .send(LightCommand {
+                    r: light.r,
+                    g: light.g,
+                    b: light.b,
+                })
+                .await;
+
+            info!("Sent light command!");
+        }
+    }
 }
 
 // #[embassy_executor::task]

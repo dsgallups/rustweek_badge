@@ -7,12 +7,12 @@ pub const RX_CHAR_UUID: u128 = 12847126749781238;
 use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Archive)]
-enum Command {
+pub enum BadgeCommand {
     Hello,
     SetLight(LightCommand),
 }
 
-impl Command {
+impl BadgeCommand {
     // fn parse(bytes: &[u8]) -> Self {
     //     match bytes {
     //         [0x3C, 0x3C] => Self::Hello,
