@@ -8,7 +8,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Archive)]
 pub enum BadgeCommand {
-    Hello,
+    Debug,
     SetLight(LightCommand),
 }
 
@@ -27,3 +27,7 @@ pub struct LightCommand {
     pub g: u8,
     pub b: u8,
 }
+
+// pub enum DrawCommand {
+
+// }

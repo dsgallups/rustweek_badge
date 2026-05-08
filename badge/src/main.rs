@@ -10,6 +10,7 @@
 mod bluetooth;
 mod command;
 mod consts;
+mod display;
 mod light;
 
 use defmt::info;

@@ -9,7 +9,7 @@ use defmt::{error, info, panic};
 use embassy_executor::Spawner;
 use esp_hal::peripherals::BT;
 use esp_radio::ble::controller::BleConnector;
-use shared::{ArchivedBadgeCommand, BadgeCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
+use shared::{ArchivedBadgeCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
@@ -169,17 +169,12 @@ async fn dispatch(bytes: &[u8]) {
     };
 
     match archived {
-        ArchivedBadgeCommand::Hello => {
-            info!("Hello!");
+        ArchivedBadgeCommand::Debug => {
+            info!("Debug command!");
         }
         ArchivedBadgeCommand::SetLight(light) => {
-            LIGHT_CHANNEL
-                .send(LightCommand {
-                    r: light.r,
-                    g: light.g,
-                    b: light.b,
-                })
-                .await;
+            let value = rkyv::deserialize::<LightCommand, rkyv::rancor::Error>(light).unwrap();
+            LIGHT_CHANNEL.send(value).await;
 
             info!("Sent light command!");
         }
