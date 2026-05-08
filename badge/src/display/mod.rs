@@ -142,6 +142,8 @@ fn handle_command(display: &mut Display<'_, '_>, command: DrawCommand) {
         }
         DrawCommand::Debug => {
             info!("(DISPLAY) Executing debug!");
+
+            // display.display().clear_to(color);
         }
         DrawCommand::Clear { color } => {
             if let Err(e) = display.display().clear_to(tri_from(color)) {
