@@ -17,6 +17,7 @@ pub mod cmd {
     pub const DISP_CTRL1: u8 = 0x21;
     pub const DISP_CTRL2: u8 = 0x22;
     pub const WRITE_RAM1: u8 = 0x24;
+    pub const WRITE_RAM2: u8 = 0x26;
     pub const WRITE_BORDER: u8 = 0x3C;
     pub const SET_RAMXPOS: u8 = 0x44;
     pub const SET_RAMYPOS: u8 = 0x45;
@@ -25,6 +26,7 @@ pub mod cmd {
 }
 
 const MONO_UPDATE_VAL: u8 = 0xF7;
+const PARTIAL_UPDATE_VAL: u8 = 0xFF;
 
 const BUSY_POLL_INTERVAL_MS: u32 = 10;
 const BUSY_TIMEOUT_MS: u32 = 10_000;
@@ -99,11 +101,7 @@ where
         Ok(())
     }
 
-    pub fn set_ram_address(
-        &mut self,
-        x: u16,
-        y: u16,
-    ) -> Result<(), DriverError<SPI, DC::Error>> {
+    pub fn set_ram_address(&mut self, x: u16, y: u16) -> Result<(), DriverError<SPI, DC::Error>> {
         self.command_with_data(cmd::SET_RAMXCOUNT, &[(x >> 3) as u8])?;
         self.command_with_data(cmd::SET_RAMYCOUNT, &[y as u8, (y >> 8) as u8])?;
         Ok(())
@@ -113,12 +111,22 @@ where
         self.command(cmd::WRITE_RAM1)
     }
 
+    pub fn start_write_ram2(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
+        self.command(cmd::WRITE_RAM2)
+    }
+
     pub fn write_data(&mut self, bytes: &[u8]) -> Result<(), DriverError<SPI, DC::Error>> {
         self.data(bytes)
     }
 
     pub fn refresh(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
         self.command_with_data(cmd::DISP_CTRL2, &[MONO_UPDATE_VAL])?;
+        self.command(cmd::MASTER_ACTIVATE)?;
+        self.wait_busy()
+    }
+
+    pub fn refresh_partial(&mut self) -> Result<(), DriverError<SPI, DC::Error>> {
+        self.command_with_data(cmd::DISP_CTRL2, &[PARTIAL_UPDATE_VAL])?;
         self.command(cmd::MASTER_ACTIVATE)?;
         self.wait_busy()
     }
