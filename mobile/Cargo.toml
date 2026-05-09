@@ -11,6 +11,7 @@ btleplug = "0.12.0"
 dioxus = { version = "0.7.1", features = ["fullstack", "router"] }
 futures-timer = "3.0.3"
 futures-util = "0.3.32"
+rkyv = { version = "0.8", default-features = false, features = ["alloc"] }
 shared = { path = "../shared" }
 uuid = "1.23.1"
 

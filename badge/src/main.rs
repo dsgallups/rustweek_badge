@@ -10,15 +10,18 @@
 mod bluetooth;
 mod command;
 mod consts;
+mod display;
 mod light;
 
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::gpio::{Input, Level, Output, OutputConfig};
 use esp_hal::timer::timg::TimerGroup;
 use panic_rtt_target as _;
+
+use crate::display::DisplayPins;
 
 extern crate alloc;
 
@@ -35,10 +38,10 @@ esp_bootloader_esp_idf::esp_app_desc!();
 )]
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
-    // generator version: 1.3.0
-    // generator parameters: --chip esp32c6 -o unstable-hal -o alloc -o wifi -o embassy -o ble-trouble -o probe-rs -o defmt -o panic-rtt-target -o zed -o nightly-aarch64-apple-darwin
+    // // generator version: 1.3.0
+    // // generator parameters: --chip esp32c6 -o unstable-hal -o alloc -o wifi -o embassy -o ble-trouble -o probe-rs -o defmt -o panic-rtt-target -o zed -o nightly-aarch64-apple-darwin
 
-    // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
+    // // find more examples https://github.com/embassy-rs/trouble/tree/main/examples/esp32
     rtt_target::rtt_init_defmt!();
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -53,7 +56,7 @@ async fn main(spawner: Spawner) -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
-    info!("Embassy initialized!");
+    // info!("Embassy initialized!");
 
     let (mut _wifi_controller, _interfaces) =
         esp_radio::wifi::new(peripherals.WIFI, Default::default())
@@ -63,17 +66,28 @@ async fn main(spawner: Spawner) -> ! {
     let mut power = Output::new(neopixel_power, Level::High, OutputConfig::default());
     power.set_high();
 
-    // TODO: Spawn some tasks
-    let _ = spawner;
-
     spawner.spawn(light::run_light(peripherals.RMT, peripherals.GPIO9).unwrap());
+
+    let display_pins = DisplayPins {
+        paper_display_busy: peripherals.GPIO6,
+        ram_chip_select: peripherals.GPIO5,
+        spi_2: peripherals.SPI2,
+        sck: peripherals.GPIO21,
+        mosi: peripherals.GPIO22,
+        miso: peripherals.GPIO23,
+        display_data_command: peripherals.GPIO17,
+        display_chip_select: peripherals.GPIO16,
+        display_reset: peripherals.GPIO18,
+    };
+
+    spawner.spawn(display::run_display(display_pins).unwrap());
+
     bluetooth::init(&spawner, peripherals.BT).await;
+
     info!("All services initialized!");
 
     loop {
         Timer::after(Duration::from_secs(60)).await;
         info!("Ran for a minute!");
     }
-
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.1.0/examples
 }

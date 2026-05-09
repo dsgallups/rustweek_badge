@@ -8,17 +8,9 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Archive)]
 pub enum BadgeCommand {
-    Hello,
+    Debug,
     SetLight(LightCommand),
-}
-
-impl BadgeCommand {
-    // fn parse(bytes: &[u8]) -> Self {
-    //     match bytes {
-    //         [0x3C, 0x3C] => Self::Hello,
-    //         _ => Self::SetLight,
-    //     }
-    // }
+    Drawing(DrawCommand),
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Archive)]
@@ -26,4 +18,31 @@ pub struct LightCommand {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Archive)]
+pub enum Color {
+    White,
+    Black,
+    Red,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Archive)]
+pub struct Point {
+    pub x: i16,
+    pub y: i16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Archive)]
+pub enum DrawCommand {
+    Line {
+        start: Point,
+        end: Point,
+        color: Color,
+    },
+    Clear {
+        color: Color,
+    },
+    Debug,
+    Flush,
 }

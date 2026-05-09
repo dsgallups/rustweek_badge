@@ -1,6 +1,7 @@
 use crate::{
     CONNECTIONS_MAX, L2CAP_CHANNELS_MAX,
     consts::{BLUETOOTH_DEVICE_ADDRESS, DEVICE_NAME},
+    display::DRAW_CHANNEL,
     light::LIGHT_CHANNEL,
 };
 use alloc::string::ToString;
@@ -9,11 +10,43 @@ use defmt::{error, info, panic};
 use embassy_executor::Spawner;
 use esp_hal::peripherals::BT;
 use esp_radio::ble::controller::BleConnector;
-use shared::{ArchivedBadgeCommand, BadgeCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
+use shared::{ArchivedBadgeCommand, DrawCommand, LightCommand, RX_CHAR_UUID, SERVICE_UUID};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
 
 type BleController = ExternalController<BleConnector<'static>, 20>;
+
+async fn dispatch(bytes: &[u8]) {
+    let archived = match rkyv::access::<ArchivedBadgeCommand, rkyv::rancor::Error>(bytes) {
+        Ok(archived) => archived,
+        Err(e) => {
+            let val = e.to_string();
+            error!("Cannot deserialize command! {}", val.as_str());
+            return;
+        }
+    };
+
+    match archived {
+        ArchivedBadgeCommand::Debug => {
+            info!("Debug command!");
+
+            DRAW_CHANNEL.send(DrawCommand::Debug).await;
+        }
+        ArchivedBadgeCommand::SetLight(light) => {
+            let value = rkyv::deserialize::<LightCommand, rkyv::rancor::Error>(light).unwrap();
+            LIGHT_CHANNEL.send(value).await;
+
+            info!("Sent light command!");
+        }
+        ArchivedBadgeCommand::Drawing(draw_command) => {
+            let value =
+                rkyv::deserialize::<DrawCommand, rkyv::rancor::Error>(draw_command).unwrap();
+
+            DRAW_CHANNEL.send(value).await;
+            info!("Sent draw command!");
+        }
+    }
+}
 
 pub async fn init(spawner: &Spawner, bluetooth: BT<'static>) {
     // BLE controller stuff. This is the the HCI "Host-Controller Interface" lower half.
@@ -156,34 +189,6 @@ async fn bluetooth_app_task(
     }
 
     //todo
-}
-
-async fn dispatch(bytes: &[u8]) {
-    let archived = match rkyv::access::<ArchivedBadgeCommand, rkyv::rancor::Error>(bytes) {
-        Ok(archived) => archived,
-        Err(e) => {
-            let val = e.to_string();
-            error!("Cannot deserialize command! {}", val.as_str());
-            return;
-        }
-    };
-
-    match archived {
-        ArchivedBadgeCommand::Hello => {
-            info!("Hello!");
-        }
-        ArchivedBadgeCommand::SetLight(light) => {
-            LIGHT_CHANNEL
-                .send(LightCommand {
-                    r: light.r,
-                    g: light.g,
-                    b: light.b,
-                })
-                .await;
-
-            info!("Sent light command!");
-        }
-    }
 }
 
 // #[embassy_executor::task]
