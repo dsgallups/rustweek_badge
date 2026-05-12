@@ -25,12 +25,12 @@ use esp_hal::{
 
 pub static DRAW_CHANNEL: Channel<CriticalSectionRawMutex, DrawCommand, 4> = Channel::new();
 
-use drivers::{display420tri::TriColor, sram23k256::Sram23k256};
+use drivers::{Sram23k256, TriColor};
 use shared::{Color, DrawCommand};
 
 use crate::display::{
     display::Display,
-    drivers::{display420tri::Display420Tri, ssd1683::Ssd1683},
+    drivers::{Display420Tri, Ssd1683},
 };
 
 pub struct DisplayPins {
