@@ -12,6 +12,7 @@ mod command;
 mod consts;
 mod display;
 mod light;
+mod old_drivers;
 
 use defmt::info;
 use embassy_executor::Spawner;
