@@ -3,6 +3,8 @@ pub mod drivers;
 mod color;
 pub use color::*;
 
+pub mod old_drivers;
+
 #[allow(clippy::module_inception)]
 mod display;
 

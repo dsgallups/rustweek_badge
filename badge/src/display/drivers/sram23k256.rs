@@ -27,19 +27,19 @@ const WRITE_STATUS: u8 = 0b000_0001;
 // const PAGE_MODE: u8 = 0b1000_0000;
 const SEQUENTIAL_MODE: u8 = 0b0100_0000;
 
-pub struct Sram23k256<S> {
-    spi: S,
+pub struct Sram23k256<Spi> {
+    spi: Spi,
 }
 
-impl<S: SpiDevice> Sram23k256<S> {
-    pub fn new(spi: S) -> Self {
+impl<Spi: SpiDevice> Sram23k256<Spi> {
+    pub fn new(spi: Spi) -> Self {
         Self { spi }
     }
     /// You'll want to call this if you plan on writing data.
     ///
     /// Note that I have not provided a method for page mode, or the ability
     /// to toggle sequential mode. if we wanna publish this, we should add those methods.
-    pub fn set_sequential_mode(&mut self) -> Result<(), S::Error> {
+    pub fn set_sequential_mode(&mut self) -> Result<(), Spi::Error> {
         self.spi.write(&[WRITE_STATUS, SEQUENTIAL_MODE])
     }
 }

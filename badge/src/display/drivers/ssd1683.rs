@@ -1,4 +1,6 @@
 #![doc = r#"
+Link: <https://www.buydisplay.com/download/ic/SSD1683.pdf>
+
 The actual controller device that drives the display.
 
 This is flushed commands from the Sram23k256.
@@ -10,6 +12,11 @@ use embedded_hal::{
     digital::{InputPin, OutputPin},
     spi::SpiDevice,
 };
+
+use crate::display::drivers::{CmdResult, Error};
+
+pub const WIDTH: u16 = 400;
+pub const HEIGHT: u16 = 300;
 
 pub struct Ssd1683<Spi, DataCommand, Reset, Busy, Delay> {
     spi: Spi,
@@ -42,5 +49,13 @@ where
             busy,
             delay,
         }
+    }
+
+    pub fn init(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
+        todo!()
+    }
+
+    pub fn refresh(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
+        todo!()
     }
 }

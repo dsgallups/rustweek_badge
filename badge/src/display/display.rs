@@ -7,10 +7,7 @@ use esp_hal::{
     spi::master::Spi,
 };
 
-use crate::display::drivers::{
-    display420tri::{Display420Tri, TriColor},
-    ssd1683::Ssd1683,
-};
+use crate::display::drivers::{Display420Tri, Ssd1683};
 
 pub struct Display<'other_io, 'spi> {
     display: Display420Tri<RefCellDevice<'other_io, Spi<'spi, Blocking>, Output<'other_io>, Delay>>,
