@@ -12,13 +12,12 @@ mod command;
 mod consts;
 mod display;
 mod light;
-mod old_drivers;
 
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Input, Level, Output, OutputConfig};
+use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::timer::timg::TimerGroup;
 use panic_rtt_target as _;
 
