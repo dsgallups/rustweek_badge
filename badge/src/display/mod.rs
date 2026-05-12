@@ -1,5 +1,8 @@
 pub mod drivers;
 
+mod color;
+pub use color::*;
+
 #[allow(clippy::module_inception)]
 mod display;
 
@@ -25,7 +28,7 @@ use esp_hal::{
 
 pub static DRAW_CHANNEL: Channel<CriticalSectionRawMutex, DrawCommand, 4> = Channel::new();
 
-use drivers::{Sram23k256, TriColor};
+use drivers::Sram23k256;
 use shared::{Color, DrawCommand};
 
 use crate::display::{
@@ -79,6 +82,12 @@ pub async fn run_display(pins: DisplayPins) {
         OutputConfig::default(),
     );
 
+    // So refcell devices allow us to communicate with a particular chip
+    // over common SPI pins by setting another active pin low.
+    //
+    // If you set all of these "chip select" pins low, then all receiving peripherals will
+    // recieve the data. if you set them all high, none of them will. And of course,
+    // If you set one low at a time, that particular device will only receive data over SPI.
     let paper_display_spi = RefCellDevice::new(
         &spi,
         Output::new(

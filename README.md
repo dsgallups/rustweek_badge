@@ -28,6 +28,12 @@ Target: `riscv32imac-unknown-none-elf`
   - <https://www.crystalfontz.com/controllers/Solomon%20Systech/SSD1683/>
 
 
+#### SRAM23K256
+This is the ram on the Friend that we will use to flush out to the display.
+- Datasheet
+  - <https://ww1.microchip.com/downloads/en/devicedoc/22100f.pdf>
+
+
 ### Peripherals
 - General Purpose Speaker: [https://www.digikey.com/en/products/detail/adafruit-industries-llc/4227/10245140]
 - General Purpose Speaker Datasheet: [https://cdn-shop.adafruit.com/product-files/4227/C13238-001+spec+RB-2030008G-046LR-E+for+C13238-001++(1).pdf]
