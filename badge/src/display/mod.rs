@@ -28,7 +28,6 @@ use esp_hal::{
 
 pub static DRAW_CHANNEL: Channel<CriticalSectionRawMutex, DrawCommand, 4> = Channel::new();
 
-use drivers::Sram23k256;
 use shared::{Color, DrawCommand};
 
 use crate::display::{
@@ -106,15 +105,7 @@ pub async fn run_display(pins: DisplayPins) {
     )
     .expect("sram device");
 
-    let mut sram = Sram23k256::new(ram_spi);
-
-    if let Err(e) = sram.set_sequential_mode() {
-        defmt::error!("SRAM seq mode failed: {:?}", e);
-    } else {
-        info!("SRAM seq mode OK");
-    }
-
-    let display = Display420Tri::new(sram);
+    let display = Display420Tri::new_from_spi(ram_spi);
 
     let display_controller = Ssd1683::new(
         paper_display_spi,

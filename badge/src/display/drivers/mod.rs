@@ -20,6 +20,4 @@ impl<Spi, Pin> From<core::convert::Infallible> for Error<Spi, Pin> {
     }
 }
 
-pub type DriverError<SPI, DC> = Error<<SPI as embedded_hal::spi::ErrorType>::Error, DC>;
-
 pub type CmdResult<SpiErr, DataCommandErr> = Result<(), Error<SpiErr, DataCommandErr>>;
