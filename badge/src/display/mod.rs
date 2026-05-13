@@ -1,6 +1,7 @@
 pub mod drivers;
 
 mod color;
+use alloc::string::ToString;
 pub use color::*;
 
 #[allow(clippy::module_inception)]
@@ -117,43 +118,48 @@ pub async fn run_display(pins: DisplayPins) {
     );
 
     let mut device = Display::new(display, display_controller);
-    device.init();
+    // device.init();
     info!("Display initialized");
 
-    // Minimal flash self-test — bypasses the SRAM-backed framebuffer and the
-    // tri-color encoding entirely. We fill the chip's own RAM1/RAM2 with
-    // constant bytes and trigger a full refresh, so any failure here is at
-    // the SSD1683 interface (SPI, BUSY, init sequence) and not in the
-    // upstream framebuffer code.
-    //
-    // Patterns:
-    // - (0x00, 0xFF) — RAM1 all 0 (black), RAM2 all 1 (red OFF under the
-    //   panel's inverted red plane) → panel should drive **all-black**.
-    // - (0xFF, 0xFF) — RAM1 all 1 (white), RAM2 all 1 (red OFF) → panel
-    //   should drive **all-white**.
-    // - (0xFF, 0x00) — RAM1 all 1 (white), RAM2 all 0 (red ON) → panel
-    //   should drive **all-red** (red overrides B/W).
-    for (label, bw_byte, red_byte) in [
-        ("black", 0x00u8, 0xFFu8),
-        ("white", 0xFFu8, 0xFFu8),
-        ("red", 0xFFu8, 0x00u8),
-    ] {
-        info!(
-            "(DISPLAY) flash-test: filling {} (bw=0x{:02X}, red=0x{:02X})",
-            label, bw_byte, red_byte
-        );
-        match device.controller().flash_test(bw_byte, red_byte) {
-            Ok(()) => info!("(DISPLAY) flash-test {} refresh completed", label),
-            Err(e) => error!("(DISPLAY) flash-test {} failed: {:?}", label, e),
-        }
-        info!("(DISPLAY) flash-test {} holding 5s", label);
-        Timer::after(Duration::from_secs(5)).await;
-    }
+    if let Err(e) = device.debug() {
+        let val = e.0.as_ref();
+        info!("Error: {}", val);
+    };
 
-    loop {
-        let command = DRAW_CHANNEL.receive().await;
-        handle_command(&mut device, command);
-    }
+    // // Minimal flash self-test — bypasses the SRAM-backed framebuffer and the
+    // // tri-color encoding entirely. We fill the chip's own RAM1/RAM2 with
+    // // constant bytes and trigger a full refresh, so any failure here is at
+    // // the SSD1683 interface (SPI, BUSY, init sequence) and not in the
+    // // upstream framebuffer code.
+    // //
+    // // Patterns:
+    // // - (0x00, 0xFF) — RAM1 all 0 (black), RAM2 all 1 (red OFF under the
+    // //   panel's inverted red plane) → panel should drive **all-black**.
+    // // - (0xFF, 0xFF) — RAM1 all 1 (white), RAM2 all 1 (red OFF) → panel
+    // //   should drive **all-white**.
+    // // - (0xFF, 0x00) — RAM1 all 1 (white), RAM2 all 0 (red ON) → panel
+    // //   should drive **all-red** (red overrides B/W).
+    // for (label, bw_byte, red_byte) in [
+    //     ("black", 0x00u8, 0xFFu8),
+    //     ("white", 0xFFu8, 0xFFu8),
+    //     ("red", 0xFFu8, 0x00u8),
+    // ] {
+    //     info!(
+    //         "(DISPLAY) flash-test: filling {} (bw=0x{:02X}, red=0x{:02X})",
+    //         label, bw_byte, red_byte
+    //     );
+    //     match device.controller().flash_test(bw_byte, red_byte) {
+    //         Ok(()) => info!("(DISPLAY) flash-test {} refresh completed", label),
+    //         Err(e) => error!("(DISPLAY) flash-test {} failed: {:?}", label, e),
+    //     }
+    //     info!("(DISPLAY) flash-test {} holding 5s", label);
+    //     Timer::after(Duration::from_secs(5)).await;
+    // }
+
+    // loop {
+    //     let command = DRAW_CHANNEL.receive().await;
+    //     handle_command(&mut device, command);
+    // }
 }
 
 fn handle_command(display: &mut Display<'_, '_>, command: DrawCommand) {

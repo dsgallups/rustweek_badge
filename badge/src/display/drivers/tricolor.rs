@@ -78,7 +78,7 @@ use embedded_hal::{
 
 use crate::display::{
     TriColor,
-    drivers::{CmdResult, Error, HEIGHT, Sram23k256, Ssd1683, WIDTH},
+    drivers::{CmdResult, DriverError, HEIGHT, Sram23k256, Ssd1683, WIDTH},
 };
 
 /// Bytes per row of the framebuffer. Each byte packs 8 horizontal pixels,
@@ -198,7 +198,7 @@ impl<Spi: SpiDevice> Display420Tri<Spi> {
     {
         // Make sure any pending single-byte edits are flushed to SRAM
         // before we read SRAM bulk over to the panel.
-        self.flush_caches().map_err(Error::Spi)?;
+        self.flush_caches().map_err(DriverError::Spi)?;
 
         epd.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
 
@@ -248,7 +248,7 @@ impl<Spi: SpiDevice> Display420Tri<Spi> {
             let remaining = PLANE_LEN - sent as usize;
             let n = remaining.min(FLUSH_CHUNK);
             sram.read_bulk(base + sent, &mut buf[..n])
-                .map_err(Error::Spi)?;
+                .map_err(DriverError::Spi)?;
             epd.write_data(&buf[..n])?;
             sent += n as u16;
         }

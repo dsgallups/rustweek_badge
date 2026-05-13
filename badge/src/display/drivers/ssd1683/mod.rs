@@ -80,7 +80,7 @@ use embedded_hal::{
     spi::SpiDevice,
 };
 
-use crate::display::drivers::{CmdResult, Error};
+use crate::display::drivers::{CmdResult, DriverError};
 
 /// Width of the 4.2" panel in pixels (horizontal source outputs).
 pub const WIDTH: u16 = 400;
@@ -141,11 +141,11 @@ where
     /// asserts BUSY for ~50ms while it runs its internal boot routines, so
     /// we wait for BUSY to drop before returning.
     pub fn reset(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
-        self.reset.set_high().map_err(Error::Pin)?;
+        self.reset.set_high().map_err(DriverError::Pin)?;
         self.delay.delay_ms(10);
-        self.reset.set_low().map_err(Error::Pin)?;
+        self.reset.set_low().map_err(DriverError::Pin)?;
         self.delay.delay_ms(10);
-        self.reset.set_high().map_err(Error::Pin)?;
+        self.reset.set_high().map_err(DriverError::Pin)?;
         self.delay.delay_ms(10);
         self.wait_busy()
     }
@@ -388,15 +388,15 @@ where
 
     /// Pull DC low, push one opcode byte over SPI.
     fn command(&mut self, cmd: u8) -> CmdResult<Spi::Error, DataCommand::Error> {
-        self.data_command.set_low().map_err(Error::Pin)?;
-        self.spi.write(&[cmd]).map_err(Error::Spi)?;
+        self.data_command.set_low().map_err(DriverError::Pin)?;
+        self.spi.write(&[cmd]).map_err(DriverError::Spi)?;
         Ok(())
     }
 
     /// Pull DC high, push N data bytes over SPI in one transaction.
     fn data(&mut self, bytes: &[u8]) -> CmdResult<Spi::Error, DataCommand::Error> {
-        self.data_command.set_high().map_err(Error::Pin)?;
-        self.spi.write(bytes).map_err(Error::Spi)?;
+        self.data_command.set_high().map_err(DriverError::Pin)?;
+        self.spi.write(bytes).map_err(DriverError::Spi)?;
         Ok(())
     }
 
@@ -418,12 +418,12 @@ where
         const BUSY_POLL_INTERVAL_MS: u32 = 10;
         const BUSY_TIMEOUT_MS: u32 = 30_000;
         let mut waited_ms: u32 = 0;
-        while self.busy.is_high().map_err(Error::Pin)? {
+        while self.busy.is_high().map_err(DriverError::Pin)? {
             self.delay.delay_ms(BUSY_POLL_INTERVAL_MS);
             waited_ms = waited_ms.saturating_add(BUSY_POLL_INTERVAL_MS);
             if waited_ms >= BUSY_TIMEOUT_MS {
                 info!("(SSD1683) wait_busy TIMEOUT after {}ms", waited_ms);
-                return Err(Error::BusyTimeout);
+                return Err(DriverError::BusyTimeout);
             }
         }
         info!("(SSD1683) wait_busy released after {}ms", waited_ms);

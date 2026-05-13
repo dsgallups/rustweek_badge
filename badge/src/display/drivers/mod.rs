@@ -8,16 +8,16 @@ mod ssd1683;
 pub use ssd1683::*;
 
 #[derive(Debug, defmt::Format)]
-pub enum Error<Spi, Pin> {
+pub enum DriverError<Spi, Pin> {
     Spi(Spi),
     Pin(Pin),
     BusyTimeout,
 }
 
-impl<Spi, Pin> From<core::convert::Infallible> for Error<Spi, Pin> {
+impl<Spi, Pin> From<core::convert::Infallible> for DriverError<Spi, Pin> {
     fn from(_: core::convert::Infallible) -> Self {
         unreachable!()
     }
 }
 
-pub type CmdResult<SpiErr, DataCommandErr> = Result<(), Error<SpiErr, DataCommandErr>>;
+pub type CmdResult<SpiErr, DataCommandErr> = Result<(), DriverError<SpiErr, DataCommandErr>>;
