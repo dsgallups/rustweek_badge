@@ -168,9 +168,9 @@ where
         self.software_reset()?;
 
         self.set_data_entry_mode(DataEntryMode::IncrementXIncrementYXMajor)?;
-        self.set_display_update_control_1(DisplayUpdateOptions::TriColor420)?;
-        self.set_border_waveform(BorderWaveform::Default)?;
-        self.set_temperature_source(TemperatureSource::Internal)?;
+        // self.set_display_update_control_1(DisplayUpdateOptions::TriColor420)?;
+        // self.set_border_waveform(BorderWaveform::Default)?;
+        // self.set_temperature_source(TemperatureSource::Internal)?;
 
         self.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
         self.set_ram_address(0, 0)?;
@@ -248,6 +248,7 @@ where
         x2: u16,
         y2: u16,
     ) -> CmdResult<Spi::Error, DataCommand::Error> {
+        // BUG?
         self.command_with_data(opcode::SET_RAM_X_RANGE, &[(x1 >> 3) as u8, (x2 >> 3) as u8])?;
         self.command_with_data(
             opcode::SET_RAM_Y_RANGE,
@@ -316,9 +317,12 @@ where
         const TOTAL_BYTES: usize = (WIDTH as usize * HEIGHT as usize) / 8;
 
         self.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
+        info!("Set ram window");
 
         self.set_ram_address(0, 0)?;
+        info!("Set ram address");
         self.start_write_ram1()?;
+        info!("Set writing ram1");
         let bw_chunk = [bw_byte; CHUNK];
         let mut sent = 0;
         while sent < TOTAL_BYTES {
@@ -329,6 +333,7 @@ where
 
         self.set_ram_address(0, 0)?;
         self.start_write_ram2()?;
+        info!("Set writing ram2");
         let red_chunk = [red_byte; CHUNK];
         let mut sent = 0;
         while sent < TOTAL_BYTES {
@@ -337,6 +342,7 @@ where
             sent += n;
         }
 
+        info!("Refreshing");
         self.refresh()
     }
 
@@ -348,10 +354,11 @@ where
     /// `MASTER_ACTIVATE` (`0x20`) — the actual "go" command — and waits for
     /// the refresh waveform to finish (~2 seconds; BUSY stays high).
     pub fn refresh(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
-        self.command_with_data(
-            opcode::DISPLAY_UPDATE_CONTROL_2,
-            &[UpdateSequence::Full.byte()],
-        )?;
+        self.command_with_data(opcode::DISPLAY_UPDATE_CONTROL_2, &[0xF7])?;
+        // self.command_with_data(
+        //     opcode::DISPLAY_UPDATE_CONTROL_2,
+        //     &[UpdateSequence::Full.byte()],
+        // )?;
         self.command_only(opcode::MASTER_ACTIVATE)?;
         self.wait_busy()
     }
@@ -377,7 +384,7 @@ where
 
     /// Send a one-byte opcode (DC low) followed by N data bytes (DC high).
     /// This is the shape of nearly every SSD1683 command.
-    fn command_with_data(
+    pub fn command_with_data(
         &mut self,
         opcode: u8,
         data: &[u8],
@@ -387,14 +394,14 @@ where
     }
 
     /// Pull DC low, push one opcode byte over SPI.
-    fn command(&mut self, cmd: u8) -> CmdResult<Spi::Error, DataCommand::Error> {
+    pub fn command(&mut self, cmd: u8) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.data_command.set_low().map_err(DriverError::Pin)?;
         self.spi.write(&[cmd]).map_err(DriverError::Spi)?;
         Ok(())
     }
 
     /// Pull DC high, push N data bytes over SPI in one transaction.
-    fn data(&mut self, bytes: &[u8]) -> CmdResult<Spi::Error, DataCommand::Error> {
+    pub fn data(&mut self, bytes: &[u8]) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.data_command.set_high().map_err(DriverError::Pin)?;
         self.spi.write(bytes).map_err(DriverError::Spi)?;
         Ok(())
@@ -414,7 +421,7 @@ where
     /// Every call logs the elapsed time so we can tell, post-mortem, whether
     /// a "BusyTimeout" was the chip being wedged (≈ 30s flat) versus a
     /// refresh that *almost* finished.
-    fn wait_busy(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
+    pub fn wait_busy(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         const BUSY_POLL_INTERVAL_MS: u32 = 10;
         const BUSY_TIMEOUT_MS: u32 = 30_000;
         let mut waited_ms: u32 = 0;

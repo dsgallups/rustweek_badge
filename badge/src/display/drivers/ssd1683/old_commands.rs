@@ -14,104 +14,13 @@
 //! Cross-reference: SSD1683 datasheet, "Command Table" section.
 //! <https://www.buydisplay.com/download/ic/SSD1683.pdf>
 
-use bt_hci::cmd::controller_baseband::Reset;
-use embedded_hal::{
-    delay::DelayNs,
-    digital::{InputPin, OutputPin},
-    spi::SpiDevice,
-};
-
-use crate::display::drivers::{CmdResult, Ssd1683};
-
-pub enum SsdOperation {
-    DeepSleep,
-    DataEntryMode(DataEntryMode),
-    SoftwareReset,
-    TempControl,
-    MasterActivate,
-    DisplayUpdateControl1(DisplayUpdateOptions),
-    SetTemperatureSource(TemperatureSource),
-    DisplayUpdateControl2,
-    /// For Black and White Plane
-    WriteRam1,
-    /// For Red Plane
-    WriteRam2,
-    WriteBorder(BorderWaveform),
-    /// `[(x1 >> 3) as u8, (x2 >> 3) as u8]`
-    SetRamXRange([u8; 2]),
-    /// `[y1 as u8, (y1 >> 8) as u8, y2 as u8, (y2 >> 8) as u8]`
-    SetRamYRange([u8; 4]),
-    /// `[(x >> 3) as u8]`
-    SetRamXCounter(u8),
-    /// `[y as u8, (y >> 8) as u8]`
-    SetRamYCounter([u8; 2]),
-}
-
-impl SsdOperation {
-    pub fn run<Spi, DataCommand, Reset, Busy, Delay>(
-        &self,
-        spi: &mut Ssd1683<Spi, DataCommand, Reset, Busy, Delay>,
-    ) -> CmdResult<Spi::Error, DataCommand::Error>
-    where
-        Spi: SpiDevice,
-        DataCommand: OutputPin,
-        Reset: OutputPin<Error = DataCommand::Error>,
-        Busy: InputPin<Error = DataCommand::Error>,
-        Delay: DelayNs,
-    {
-        use SsdOperation as O;
-        match self {
-            O::DeepSleep => {
-                spi.command(0x10)?;
-            }
-            O::DataEntryMode(mode) => {
-                spi.command_with_data(0x11, &[mode.byte()])?;
-            }
-            O::DisplayUpdateControl1(opts) => {
-                spi.command_with_data(0x21, &opts.bytes())?;
-            }
-            O::SetTemperatureSource(source) => {
-                spi.command_with_data(0x18, &[source.byte()])?;
-            }
-
-            O::WriteBorder(wave_form) => {
-                spi.command_with_data(0x3C, &[wave_form.byte()])?;
-            }
-            O::SetRamXRange(bytes) => {
-                spi.command_with_data(opcode::SET_RAM_X_RANGE, bytes.as_slice())?;
-            }
-            O::SetRamYRange(bytes) => {
-                spi.command_with_data(opcode::SET_RAM_Y_RANGE, bytes.as_slice())?;
-            }
-            O::SetRamXCounter(byte) => {
-                spi.command_with_data(opcode::SET_RAM_X_COUNTER, &[*byte])?;
-            }
-            O::SetRamYCounter(bytes) => {
-                spi.command_with_data(opcode::SET_RAM_X_COUNTER, bytes.as_slice())?;
-            }
-            O::SoftwareReset => {
-                spi.command(0x12)?;
-            }
-            O::WriteRam1 => {
-                spi.command(opcode::WRITE_RAM_BW)?;
-            }
-            O::WriteRam2 => {
-                spi.command(opcode::WRITE_RAM_RED)?;
-            }
-
-            _ => todo!(),
-        }
-        Ok(())
-    }
-}
-
 /// Single-byte command opcodes we send to the SSD1683.
 ///
 /// Every entry here is an opcode you'll see in the datasheet's command table,
 /// keyed by name. The numbers themselves are stable across the SSD168x
 /// family, so anything you see in GxEPD2 / Adafruit reference code with the
 /// same hex value means the same thing here.
-pub mod opcode {
+pub(super) mod opcode {
     /// `0x10` — Deep sleep. Followed by 1 data byte (`0x01` = mode 1 deep
     /// sleep). After this the chip ignores everything until you pulse the
     /// RST pin.
@@ -300,7 +209,7 @@ pub enum DisplayUpdateOptions {
 impl DisplayUpdateOptions {
     pub(super) fn bytes(self) -> [u8; 2] {
         match self {
-            Self::TriColor420 => [0b0000_0000, 0],
+            Self::TriColor420 => [0x40, 0x00],
         }
     }
 }

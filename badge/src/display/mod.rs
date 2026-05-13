@@ -121,7 +121,7 @@ pub async fn run_display(pins: DisplayPins) {
     // device.init();
     info!("Display initialized");
 
-    if let Err(e) = device.debug() {
+    if let Err(e) = device.debug().await {
         let val = e.0.as_ref();
         info!("Error: {}", val);
     };

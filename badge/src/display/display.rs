@@ -1,11 +1,12 @@
-use core::convert::Infallible;
 use core::fmt::Write;
+use core::{convert::Infallible, time::Duration};
 
 use alloc::{
     borrow::Cow,
     string::{String, ToString},
 };
 use defmt::{error, info};
+use embassy_time::Timer;
 use embedded_hal::spi::Error;
 use embedded_hal_bus::spi::{DeviceError, RefCellDevice};
 use esp_hal::{
@@ -15,7 +16,10 @@ use esp_hal::{
     spi::master::Spi,
 };
 
-use crate::display::drivers::{CmdResult, Display420Tri, DriverError, Ssd1683};
+use crate::display::drivers::{
+    BorderWaveform, CmdResult, DataEntryMode, Display420Tri, DriverError, HEIGHT, Ssd1683,
+    TemperatureSource, WIDTH, opcode,
+};
 
 pub struct Display<'other_io, 'spi> {
     display: Display420Tri<RefCellDevice<'other_io, Spi<'spi, Blocking>, Output<'other_io>, Delay>>,
@@ -82,15 +86,70 @@ impl<'other_io, 'spi> Display<'other_io, 'spi> {
         }
     }
 
-    pub fn debug(&mut self) -> Result<(), Failed> {
+    pub async fn debug(&mut self) -> Result<(), Failed> {
+        Timer::after(embassy_time::Duration::from_secs(3)).await;
         info!("Running debug code on display!");
-        self.controller.init()?;
-        if let Err(e) = self.controller.init() {
-            error!("Flush to panel failed: {:?}", e);
-        }
+
+        self.controller.reset()?;
+        self.controller.software_reset()?;
+
+        self.controller
+            .set_data_entry_mode(DataEntryMode::IncrementXIncrementYXMajor)?;
+        // self.set_display_update_control_1(DisplayUpdateOptions::TriColor420)?;
+        self.controller
+            .set_border_waveform(BorderWaveform::Default)?;
+        self.controller
+            .set_temperature_source(TemperatureSource::Internal)?;
+
+        self.controller
+            .set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
+        self.controller.set_ram_address(0, 0)?;
+        // if let Err(e) = self.controller.init() {
+        //     error!("Flush to panel failed: {:?}", e);
+        // }
 
         // self.controller().refresh()
         info!("Display initialized");
+
+        self.controller.command_with_data(
+            opcode::DISPLAY_UPDATE_CONTROL_1,
+            &[0b0000_0000, 0b0000_0000],
+        )?;
+
+        // self.controller.set_display_update_control_1(
+        //     crate::display::drivers::DisplayUpdateOptions::TriColor420,
+        // )?;
+        info!("Set control");
+        info!("Flashing!");
+
+        let wait_for = 10;
+
+        self.controller.flash_test(0xFF, 0x00)?;
+        info!("Flashed (0xFF, 0x00)! Waiting");
+
+        self.controller.wait_busy()?;
+
+        // Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+
+        // self.controller.flash_test(0x00, 0x00)?;
+        // self.controller.wait_busy()?;
+
+        // info!("Flashed (0x00, 0x00)! Waiting");
+        // Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+
+        // self.controller.flash_test(0x00, 0xFF)?;
+        // self.controller.wait_busy()?;
+
+        // info!("Flashed (0x00, 0xFF)! Waiting");
+        // Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+
+        // self.controller.flash_test(0xFF, 0xFF)?;
+        // self.controller.wait_busy()?;
+
+        // info!("Flashed (0xFF, 0xFF)! Waiting");
+        Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+
+        info!("Done!");
         Ok(())
         //
     }
