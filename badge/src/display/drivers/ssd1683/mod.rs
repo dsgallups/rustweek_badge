@@ -201,20 +201,20 @@ where
         self.command_with_data(opcode::DATA_ENTRY_MODE, &[mode.byte()])
     }
 
-    /// Send opcode `0x21` (Display Update Control 1) — the per-plane
-    /// "how to mix RAM1 (B/W) and RAM2 (red) into the panel output" config.
-    ///
-    /// **The empirical value is not the datasheet's "Normal/Normal."**
-    /// See [`DisplayUpdateOptions`] for the full story; the short version
-    /// is that this panel needs `[0x40, 0x00]` for tri-color refresh to
-    /// actually run, and the red plane comes out bit-inverted as a side
-    /// effect (compensated for in the tricolor encoding tables).
-    pub fn set_display_update_control_1(
-        &mut self,
-        options: DisplayUpdateOptions,
-    ) -> CmdResult<Spi::Error, DataCommand::Error> {
-        self.command_with_data(opcode::DISPLAY_UPDATE_CONTROL_1, &options.bytes())
-    }
+    // /// Send opcode `0x21` (Display Update Control 1) — the per-plane
+    // /// "how to mix RAM1 (B/W) and RAM2 (red) into the panel output" config.
+    // ///
+    // /// **The empirical value is not the datasheet's "Normal/Normal."**
+    // /// See [`DisplayUpdateOptions`] for the full story; the short version
+    // /// is that this panel needs `[0x40, 0x00]` for tri-color refresh to
+    // /// actually run, and the red plane comes out bit-inverted as a side
+    // /// effect (compensated for in the tricolor encoding tables).
+    // pub fn set_display_update_control_1(
+    //     &mut self,
+    //     options: DisplayUpdateOptions,
+    // ) -> CmdResult<Spi::Error, DataCommand::Error> {
+    //     self.command_with_data(opcode::DISPLAY_UPDATE_CONTROL_1, &options.bytes())
+    // }
 
     /// Send opcode `0x3C` to set the border-ring waveform.
     pub fn set_border_waveform(

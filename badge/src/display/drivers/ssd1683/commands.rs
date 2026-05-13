@@ -14,96 +14,95 @@
 //! Cross-reference: SSD1683 datasheet, "Command Table" section.
 //! <https://www.buydisplay.com/download/ic/SSD1683.pdf>
 
-use bt_hci::cmd::controller_baseband::Reset;
-use embedded_hal::{
-    delay::DelayNs,
-    digital::{InputPin, OutputPin},
-    spi::SpiDevice,
-};
+// use embedded_hal::{
+//     delay::DelayNs,
+//     digital::{InputPin, OutputPin},
+//     spi::SpiDevice,
+// };
 
-use crate::display::drivers::{CmdResult, Ssd1683};
+// use crate::display::drivers::{CmdResult, Ssd1683};
 
-pub enum SsdOperation {
-    DeepSleep,
-    DataEntryMode(DataEntryMode),
-    SoftwareReset,
-    TempControl,
-    MasterActivate,
-    DisplayUpdateControl1(DisplayUpdateOptions),
-    SetTemperatureSource(TemperatureSource),
-    DisplayUpdateControl2,
-    /// For Black and White Plane
-    WriteRam1,
-    /// For Red Plane
-    WriteRam2,
-    WriteBorder(BorderWaveform),
-    /// `[(x1 >> 3) as u8, (x2 >> 3) as u8]`
-    SetRamXRange([u8; 2]),
-    /// `[y1 as u8, (y1 >> 8) as u8, y2 as u8, (y2 >> 8) as u8]`
-    SetRamYRange([u8; 4]),
-    /// `[(x >> 3) as u8]`
-    SetRamXCounter(u8),
-    /// `[y as u8, (y >> 8) as u8]`
-    SetRamYCounter([u8; 2]),
-}
+// pub enum SsdOperation {
+//     DeepSleep,
+//     DataEntryMode(DataEntryMode),
+//     SoftwareReset,
+//     TempControl,
+//     MasterActivate,
+//     DisplayUpdateControl1(DisplayUpdateOptions),
+//     SetTemperatureSource(TemperatureSource),
+//     DisplayUpdateControl2,
+//     /// For Black and White Plane
+//     WriteRam1,
+//     /// For Red Plane
+//     WriteRam2,
+//     WriteBorder(BorderWaveform),
+//     /// `[(x1 >> 3) as u8, (x2 >> 3) as u8]`
+//     SetRamXRange([u8; 2]),
+//     /// `[y1 as u8, (y1 >> 8) as u8, y2 as u8, (y2 >> 8) as u8]`
+//     SetRamYRange([u8; 4]),
+//     /// `[(x >> 3) as u8]`
+//     SetRamXCounter(u8),
+//     /// `[y as u8, (y >> 8) as u8]`
+//     SetRamYCounter([u8; 2]),
+// }
 
-impl SsdOperation {
-    pub fn run<Spi, DataCommand, Reset, Busy, Delay>(
-        &self,
-        spi: &mut Ssd1683<Spi, DataCommand, Reset, Busy, Delay>,
-    ) -> CmdResult<Spi::Error, DataCommand::Error>
-    where
-        Spi: SpiDevice,
-        DataCommand: OutputPin,
-        Reset: OutputPin<Error = DataCommand::Error>,
-        Busy: InputPin<Error = DataCommand::Error>,
-        Delay: DelayNs,
-    {
-        use SsdOperation as O;
-        match self {
-            O::DeepSleep => {
-                spi.command(0x10)?;
-            }
-            O::DataEntryMode(mode) => {
-                spi.command_with_data(0x11, &[mode.byte()])?;
-            }
-            O::DisplayUpdateControl1(opts) => {
-                spi.command_with_data(0x21, &opts.bytes())?;
-            }
-            O::SetTemperatureSource(source) => {
-                spi.command_with_data(0x18, &[source.byte()])?;
-            }
+// impl SsdOperation {
+//     pub fn run<Spi, DataCommand, Reset, Busy, Delay>(
+//         &self,
+//         spi: &mut Ssd1683<Spi, DataCommand, Reset, Busy, Delay>,
+//     ) -> CmdResult<Spi::Error, DataCommand::Error>
+//     where
+//         Spi: SpiDevice,
+//         DataCommand: OutputPin,
+//         Reset: OutputPin<Error = DataCommand::Error>,
+//         Busy: InputPin<Error = DataCommand::Error>,
+//         Delay: DelayNs,
+//     {
+//         use SsdOperation as O;
+//         match self {
+//             O::DeepSleep => {
+//                 spi.command(0x10)?;
+//             }
+//             O::DataEntryMode(mode) => {
+//                 spi.command_with_data(0x11, &[mode.byte()])?;
+//             }
+//             O::DisplayUpdateControl1(opts) => {
+//                 spi.command_with_data(0x21, &opts.bytes())?;
+//             }
+//             O::SetTemperatureSource(source) => {
+//                 spi.command_with_data(0x18, &[source.byte()])?;
+//             }
 
-            O::WriteBorder(wave_form) => {
-                spi.command_with_data(0x3C, &[wave_form.byte()])?;
-            }
-            O::SetRamXRange(bytes) => {
-                spi.command_with_data(opcode::SET_RAM_X_RANGE, bytes.as_slice())?;
-            }
-            O::SetRamYRange(bytes) => {
-                spi.command_with_data(opcode::SET_RAM_Y_RANGE, bytes.as_slice())?;
-            }
-            O::SetRamXCounter(byte) => {
-                spi.command_with_data(opcode::SET_RAM_X_COUNTER, &[*byte])?;
-            }
-            O::SetRamYCounter(bytes) => {
-                spi.command_with_data(opcode::SET_RAM_X_COUNTER, bytes.as_slice())?;
-            }
-            O::SoftwareReset => {
-                spi.command(0x12)?;
-            }
-            O::WriteRam1 => {
-                spi.command(opcode::WRITE_RAM_BW)?;
-            }
-            O::WriteRam2 => {
-                spi.command(opcode::WRITE_RAM_RED)?;
-            }
+//             O::WriteBorder(wave_form) => {
+//                 spi.command_with_data(0x3C, &[wave_form.byte()])?;
+//             }
+//             O::SetRamXRange(bytes) => {
+//                 spi.command_with_data(opcode::SET_RAM_X_RANGE, bytes.as_slice())?;
+//             }
+//             O::SetRamYRange(bytes) => {
+//                 spi.command_with_data(opcode::SET_RAM_Y_RANGE, bytes.as_slice())?;
+//             }
+//             O::SetRamXCounter(byte) => {
+//                 spi.command_with_data(opcode::SET_RAM_X_COUNTER, &[*byte])?;
+//             }
+//             O::SetRamYCounter(bytes) => {
+//                 spi.command_with_data(opcode::SET_RAM_X_COUNTER, bytes.as_slice())?;
+//             }
+//             O::SoftwareReset => {
+//                 spi.command(0x12)?;
+//             }
+//             O::WriteRam1 => {
+//                 spi.command(opcode::WRITE_RAM_BW)?;
+//             }
+//             O::WriteRam2 => {
+//                 spi.command(opcode::WRITE_RAM_RED)?;
+//             }
 
-            _ => todo!(),
-        }
-        Ok(())
-    }
-}
+//             _ => todo!(),
+//         }
+//         Ok(())
+//     }
+// }
 
 /// Single-byte command opcodes we send to the SSD1683.
 ///
@@ -253,54 +252,6 @@ impl TemperatureSource {
         match self {
             Self::Internal => 0x80,
             Self::ExternalI2c => 0x48,
-        }
-    }
-}
-
-/// Setting for opcode `0x21` (Display Update Control 1) — the per-plane
-/// "how to mix RAM1 (B/W) and RAM2 (red) into the panel output" config.
-///
-/// **Read this carefully — the datasheet description and the empirical
-/// behavior disagree on this panel.**
-///
-/// The SSD1683 datasheet describes byte 1 as two independent 4-bit fields,
-/// one per plane, each picking between `0x0` (Normal: use the RAM bits
-/// as-is), `0x4` (Bypass: treat the plane as all zeros), and `0x8`
-/// (Inverse: flip the plane's bits). Per that description, "Normal /
-/// Normal" → `0x00` should be the right value for a tri-color refresh.
-///
-/// On the 4.2" b/w/r module on this badge, **`0x00` silently breaks
-/// refresh.** `MASTER_ACTIVATE` returns within milliseconds, BUSY barely
-/// glitches, and the panel doesn't change. The value that actually drives
-/// a working tri-color refresh is `[0x40, 0x00]` — the same value
-/// Waveshare's `EPD_4IN2B_V2` reference uses and what this driver
-/// previously used before the May 2026 rewrite tried to "clean it up."
-///
-/// Under `0x40` the red plane bit semantics come out inverted from the
-/// datasheet description: `red_bit = 0` ⇒ red pixel **ON**, `red_bit = 1`
-/// ⇒ red pixel **OFF**. The encoding tables in
-/// `display/drivers/tricolor.rs` account for that — don't "fix" them
-/// without first reading this comment.
-///
-/// We expose this as a single-variant enum so the call site reads as
-/// configuration rather than a magic byte pair, and so the value lives
-/// next to the explanation of why it is what it is. Add variants if a
-/// future panel needs a different combination.
-///
-/// Cross-reference: datasheet, command `0x21`; Waveshare 4.2" b/w/r
-/// reference `EPD_4IN2B_V2_Init`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DisplayUpdateOptions {
-    /// `[0x40, 0x00]` — the value the 4.2" tri-color SSD1683 panel needs
-    /// for a real refresh. **Not** "Normal/Normal" per the datasheet —
-    /// see the enum-level docs for why that doesn't work.
-    TriColor420,
-}
-
-impl DisplayUpdateOptions {
-    pub(super) fn bytes(self) -> [u8; 2] {
-        match self {
-            Self::TriColor420 => [0b0000_0000, 0],
         }
     }
 }
