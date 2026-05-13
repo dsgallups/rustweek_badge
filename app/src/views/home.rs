@@ -40,8 +40,23 @@ pub fn Home() -> Element {
             };
             match ble::scan_all(&adapter, Duration::from_secs(2)).await {
                 Ok(found) => {
-                    devices.set(found);
-                    status.set(Status::Idle);
+                    // Auto-connect when exactly one badge is in range. Multiple
+                    // matches → show the list and let the user pick.
+                    if found.len() == 1 {
+                        let peripheral = found[0].peripheral.clone();
+                        devices.set(found);
+                        status.set(Status::Connecting);
+                        match ble::connect(&peripheral).await {
+                            Ok(()) => {
+                                connected.set(Some(peripheral));
+                                status.set(Status::Connected);
+                            }
+                            Err(e) => status.set(Status::Error(e)),
+                        }
+                    } else {
+                        devices.set(found);
+                        status.set(Status::Idle);
+                    }
                 }
                 Err(e) => status.set(Status::Error(e)),
             }

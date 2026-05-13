@@ -43,18 +43,25 @@ when the byte changes or [`Display420Tri::flush_caches`] is called. The
 cache is bypassed by [`Display420Tri::clear_to`] and
 [`Display420Tri::flush_to_panel`], which use bulk SRAM I/O.
 
-## Wire convention (the inversion-bug story)
+## Wire convention (read before "cleaning up" the encoding tables)
 
-This code assumes **no controller-side inversion** — i.e., the SSD1683 is
-init'd with `DISPLAY_UPDATE_CONTROL_1 = [0x00, 0x80]` (`RamOption::Normal`
-on both planes). Under that convention the panel directly mirrors what we
-write: RAM1 bit `1` = white, RAM2 bit `1` = red. The encoding tables in
-[`encode_fill`] and [`encode_pixel`] follow this directly with **no software
-inversion** required.
+The SSD1683 is init'd with `DISPLAY_UPDATE_CONTROL_1 = [0x40, 0x00]`
+(see [`crate::display::drivers::DisplayUpdateOptions`] for why that, and
+not `[0x00, 0x00]`). Under that setting, this panel reads:
 
-If you ever flip the controller back to `RamOption::Inverse` for the red
-plane, you'd need to invert RAM2 bytes when streaming — or flip the
-`red` column of these encoding tables.
+- **RAM1 (B/W plane):** bit `1` = white, bit `0` = black. Direct.
+- **RAM2 (red plane):** bit `1` = red **OFF**, bit `0` = red **ON**.
+  Inverted from the datasheet description, but consistent on every unit
+  we've programmed.
+
+So [`encode_fill`] and [`encode_pixel`] write the red plane *inverted*
+relative to a `TriColor::Red` pixel. This is **not** a bug to remove — it
+is the correction that makes the software's "red = red" semantics line
+up with what the panel actually shows.
+
+A previous rewrite tried switching to `[0x00, 0x00]` to drop the
+inversion. The result: refresh stopped working entirely (chip silently
+returns from `MASTER_ACTIVATE` without driving the waveform). Don't.
 "#]
 
 use defmt::{Format, info};
@@ -330,32 +337,34 @@ impl<Spi: SpiDevice> Display420Tri<Spi> {
 
 /// `TriColor` → `(black_plane_byte_fill, red_plane_byte_fill)` for bulk fill.
 ///
-/// Same logic as [`encode_pixel`] but at byte granularity: `0xFF` = "all 8
-/// bits set in this plane," `0x00` = "all 8 cleared." Used by
-/// [`Display420Tri::clear_to`].
+/// Byte-granularity version of [`encode_pixel`]: `0xFF` = "all 8 bits set
+/// in this plane," `0x00` = "all 8 cleared." The red plane fill is the
+/// *inverted* equivalent of the per-pixel red bit because of the panel's
+/// red-plane wiring under `DISPLAY_UPDATE_CONTROL_1 = [0x40, 0x00]` — see
+/// the module-level "wire convention" doc.
 fn encode_fill(color: TriColor) -> (u8, u8) {
     match color {
-        TriColor::White => (0xFF, 0x00),
-        TriColor::Black => (0x00, 0x00),
-        TriColor::Red => (0xFF, 0xFF),
+        TriColor::White => (0xFF, 0xFF),
+        TriColor::Black => (0x00, 0xFF),
+        TriColor::Red => (0xFF, 0x00),
     }
 }
 
 /// `TriColor` → `(black_plane_bit, red_plane_bit)` for a single pixel.
 ///
-/// Truth table under `RamOption::Normal` on both planes (i.e. no
-/// controller-side inversion):
+/// Truth table for this panel under
+/// `DISPLAY_UPDATE_CONTROL_1 = [0x40, 0x00]` (red plane reads inverted):
 ///
 /// | Color | RAM1 bit | RAM2 bit | Panel renders |
 /// | --- | --- | --- | --- |
-/// | White | 1 (white) | 0 (red off) | white |
-/// | Black | 0 (black) | 0 (red off) | black |
-/// | Red   | 1 (white) | 1 (red on)  | red (red overrides the white below) |
+/// | White | 1 (white) | 1 (red off, inverted) | white |
+/// | Black | 0 (black) | 1 (red off, inverted) | black |
+/// | Red   | 1 (white) | 0 (red on, inverted)  | red (red overrides the BW underneath) |
 fn encode_pixel(color: TriColor) -> (bool, bool) {
     match color {
-        TriColor::White => (true, false),
-        TriColor::Black => (false, false),
-        TriColor::Red => (true, true),
+        TriColor::White => (true, true),
+        TriColor::Black => (false, true),
+        TriColor::Red => (true, false),
     }
 }
 

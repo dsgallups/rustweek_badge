@@ -10,6 +10,7 @@ use core::cell::RefCell;
 
 use defmt::{error, info};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     prelude::*,
     primitives::{Line, PrimitiveStyle},
@@ -119,6 +120,36 @@ pub async fn run_display(pins: DisplayPins) {
     device.init();
     info!("Display initialized");
 
+    // Minimal flash self-test — bypasses the SRAM-backed framebuffer and the
+    // tri-color encoding entirely. We fill the chip's own RAM1/RAM2 with
+    // constant bytes and trigger a full refresh, so any failure here is at
+    // the SSD1683 interface (SPI, BUSY, init sequence) and not in the
+    // upstream framebuffer code.
+    //
+    // Patterns:
+    // - (0x00, 0xFF) — RAM1 all 0 (black), RAM2 all 1 (red OFF under the
+    //   panel's inverted red plane) → panel should drive **all-black**.
+    // - (0xFF, 0xFF) — RAM1 all 1 (white), RAM2 all 1 (red OFF) → panel
+    //   should drive **all-white**.
+    // - (0xFF, 0x00) — RAM1 all 1 (white), RAM2 all 0 (red ON) → panel
+    //   should drive **all-red** (red overrides B/W).
+    for (label, bw_byte, red_byte) in [
+        ("black", 0x00u8, 0xFFu8),
+        ("white", 0xFFu8, 0xFFu8),
+        ("red", 0xFFu8, 0x00u8),
+    ] {
+        info!(
+            "(DISPLAY) flash-test: filling {} (bw=0x{:02X}, red=0x{:02X})",
+            label, bw_byte, red_byte
+        );
+        match device.controller().flash_test(bw_byte, red_byte) {
+            Ok(()) => info!("(DISPLAY) flash-test {} refresh completed", label),
+            Err(e) => error!("(DISPLAY) flash-test {} failed: {:?}", label, e),
+        }
+        info!("(DISPLAY) flash-test {} holding 5s", label);
+        Timer::after(Duration::from_secs(5)).await;
+    }
+
     loop {
         let command = DRAW_CHANNEL.receive().await;
         handle_command(&mut device, command);
@@ -143,7 +174,25 @@ fn handle_command(display: &mut Display<'_, '_>, command: DrawCommand) {
         DrawCommand::Debug => {
             info!("(DISPLAY) Executing debug!");
 
-            // display.display().clear_to(color);
+            if let Err(e) = display.display().clear_to(TriColor::White) {
+                error!("(DISPLAY) debug clear failed: {:?}", e);
+                return;
+            }
+
+            let diagonal = Line::new(Point::new(0, 0), Point::new(399, 299))
+                .into_styled(PrimitiveStyle::with_stroke(TriColor::Black, 1));
+            if let Err(e) = diagonal.draw(display.display()) {
+                error!("(DISPLAY) debug diagonal failed: {:?}", e);
+            }
+
+            let red_stripe = Line::new(Point::new(0, 150), Point::new(399, 150))
+                .into_styled(PrimitiveStyle::with_stroke(TriColor::Red, 3));
+            if let Err(e) = red_stripe.draw(display.display()) {
+                error!("(DISPLAY) debug stripe failed: {:?}", e);
+            }
+
+            display.flush();
+            info!("(DISPLAY) Debug pattern drawn + flushed");
         }
         DrawCommand::Clear { color } => {
             if let Err(e) = display.display().clear_to(tri_from(color)) {

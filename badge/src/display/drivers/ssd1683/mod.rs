@@ -73,6 +73,7 @@ you change the active RAM window between draws.
 mod commands;
 pub use commands::*;
 
+use defmt::info;
 use embedded_hal::{
     delay::DelayNs,
     digital::{InputPin, OutputPin},
@@ -155,8 +156,9 @@ where
     /// 1. Hardware reset.
     /// 2. Software reset (opcode `0x12`) + wait_busy.
     /// 3. Data-entry mode = row-major auto-increment (opcode `0x11`).
-    /// 4. Display-update control 1 = normal on both planes, no controller-
-    ///    side inversion (opcode `0x21`, sends `[0x00, 0x80]`).
+    /// 4. Display update control 1 = `[0x40, 0x00]` — the value tri-color
+    ///    refresh actually needs on this panel (see
+    ///    [`DisplayUpdateOptions`] for why this isn't `[0x00, 0x00]`).
     /// 5. Border waveform = default (opcode `0x3C`).
     /// 6. Temperature source = internal sensor (opcode `0x18`).
     /// 7. RAM window = the entire 400×300 panel (opcodes `0x44`+`0x45`).
@@ -166,7 +168,7 @@ where
         self.software_reset()?;
 
         self.set_data_entry_mode(DataEntryMode::IncrementXIncrementYXMajor)?;
-        self.set_display_update_control_1(RamOption::Normal, RamOption::Normal)?;
+        self.set_display_update_control_1(DisplayUpdateOptions::TriColor420)?;
         self.set_border_waveform(BorderWaveform::Default)?;
         self.set_temperature_source(TemperatureSource::Internal)?;
 
@@ -199,20 +201,19 @@ where
         self.command_with_data(opcode::DATA_ENTRY_MODE, &[mode.byte()])
     }
 
-    /// Send opcode `0x21` (Display Update Control 1) configuring how each
-    /// RAM plane is mixed into the panel output.
+    /// Send opcode `0x21` (Display Update Control 1) — the per-plane
+    /// "how to mix RAM1 (B/W) and RAM2 (red) into the panel output" config.
     ///
-    /// Critical for tri-color: use [`RamOption::Normal`] for both planes
-    /// unless you specifically want the controller to invert/bypass a plane.
-    /// Sending `Normal, Normal` here means software's natural convention
-    /// (`bit 1 = pixel on`) matches what the panel renders, which is what
-    /// the current encoding tables in `display/drivers/tricolor.rs` assume.
+    /// **The empirical value is not the datasheet's "Normal/Normal."**
+    /// See [`DisplayUpdateOptions`] for the full story; the short version
+    /// is that this panel needs `[0x40, 0x00]` for tri-color refresh to
+    /// actually run, and the red plane comes out bit-inverted as a side
+    /// effect (compensated for in the tricolor encoding tables).
     pub fn set_display_update_control_1(
         &mut self,
-        bw: RamOption,
-        red: RamOption,
+        options: DisplayUpdateOptions,
     ) -> CmdResult<Spi::Error, DataCommand::Error> {
-        self.command_with_data(opcode::DISPLAY_UPDATE_CONTROL_1, &RamOption::pack(bw, red))
+        self.command_with_data(opcode::DISPLAY_UPDATE_CONTROL_1, &options.bytes())
     }
 
     /// Send opcode `0x3C` to set the border-ring waveform.
@@ -260,11 +261,7 @@ where
     ///
     /// Same unit conventions as [`Self::set_ram_window`]: X is in pixels
     /// (we divide by 8 on the wire), Y is in pixel rows (little-endian u16).
-    pub fn set_ram_address(
-        &mut self,
-        x: u16,
-        y: u16,
-    ) -> CmdResult<Spi::Error, DataCommand::Error> {
+    pub fn set_ram_address(&mut self, x: u16, y: u16) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.command_with_data(opcode::SET_RAM_X_COUNTER, &[(x >> 3) as u8])?;
         self.command_with_data(opcode::SET_RAM_Y_COUNTER, &[y as u8, (y >> 8) as u8])
     }
@@ -294,6 +291,53 @@ where
     /// transaction. The chip's RAM address counter auto-advances per byte.
     pub fn write_data(&mut self, bytes: &[u8]) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.data(bytes)
+    }
+
+    /// Diagnostic flash test: fill both chip-side RAM banks with the given
+    /// constant bytes and trigger a full refresh.
+    ///
+    /// Bypasses the SRAM-backed framebuffer and the tri-color encoding layer
+    /// entirely — useful for isolating the SSD1683 driver from everything
+    /// upstream of it. If `flash_test(0xFF, 0x00)` doesn't visibly drive the
+    /// panel to all-white-with-no-red, the problem is at the chip
+    /// interface (SPI, BUSY, init sequence), not in the framebuffer.
+    ///
+    /// `bw_byte` fills RAM1 (`0xFF` = all white, `0x00` = all black);
+    /// `red_byte` fills RAM2 (semantics depend on
+    /// [`DisplayUpdateOptions`] — under `TriColor420` on this panel, `0x00`
+    /// = red ON, `0xFF` = red OFF; see the wire-convention notes in
+    /// `tricolor.rs`).
+    pub fn flash_test(
+        &mut self,
+        bw_byte: u8,
+        red_byte: u8,
+    ) -> CmdResult<Spi::Error, DataCommand::Error> {
+        const CHUNK: usize = 256;
+        const TOTAL_BYTES: usize = (WIDTH as usize * HEIGHT as usize) / 8;
+
+        self.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
+
+        self.set_ram_address(0, 0)?;
+        self.start_write_ram1()?;
+        let bw_chunk = [bw_byte; CHUNK];
+        let mut sent = 0;
+        while sent < TOTAL_BYTES {
+            let n = (TOTAL_BYTES - sent).min(CHUNK);
+            self.write_data(&bw_chunk[..n])?;
+            sent += n;
+        }
+
+        self.set_ram_address(0, 0)?;
+        self.start_write_ram2()?;
+        let red_chunk = [red_byte; CHUNK];
+        let mut sent = 0;
+        while sent < TOTAL_BYTES {
+            let n = (TOTAL_BYTES - sent).min(CHUNK);
+            self.write_data(&red_chunk[..n])?;
+            sent += n;
+        }
+
+        self.refresh()
     }
 
     /// Run a full display refresh, drawing whatever's currently in RAM1
@@ -356,23 +400,33 @@ where
         Ok(())
     }
 
-    /// Poll the BUSY pin until it goes low, with a 10-second timeout.
+    /// Poll the BUSY pin until it goes low, with a 30-second timeout.
     ///
     /// BUSY is driven by the chip — high means "still working on the previous
     /// command, don't talk to me." We poll every 10ms and bail with
-    /// [`Error::BusyTimeout`] after 10s, which would only happen if the chip
-    /// is wedged.
+    /// [`Error::BusyTimeout`] if it stays high past the cap.
+    ///
+    /// The cap is generous (30s) because a tri-color full refresh on the
+    /// 4.2" b/w/r panel can legitimately take 10–15 seconds — the chip
+    /// drives a multi-phase waveform to coerce red particles into position
+    /// alongside black/white. A tight cap masks that as a hang.
+    ///
+    /// Every call logs the elapsed time so we can tell, post-mortem, whether
+    /// a "BusyTimeout" was the chip being wedged (≈ 30s flat) versus a
+    /// refresh that *almost* finished.
     fn wait_busy(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         const BUSY_POLL_INTERVAL_MS: u32 = 10;
-        const BUSY_TIMEOUT_MS: u32 = 10_000;
+        const BUSY_TIMEOUT_MS: u32 = 30_000;
         let mut waited_ms: u32 = 0;
         while self.busy.is_high().map_err(Error::Pin)? {
             self.delay.delay_ms(BUSY_POLL_INTERVAL_MS);
             waited_ms = waited_ms.saturating_add(BUSY_POLL_INTERVAL_MS);
             if waited_ms >= BUSY_TIMEOUT_MS {
+                info!("(SSD1683) wait_busy TIMEOUT after {}ms", waited_ms);
                 return Err(Error::BusyTimeout);
             }
         }
+        info!("(SSD1683) wait_busy released after {}ms", waited_ms);
         Ok(())
     }
 }

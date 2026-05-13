@@ -107,17 +107,33 @@ async fn bluetooth_app_task(
     mut peripheral: Peripheral<'static, BleController, DefaultPacketPool>,
     server: &'static Server<'static>,
 ) {
+    // Advertisement packet (31-byte max): flags + our service UUID. The
+    // service UUID lets the mobile app filter scans down to badges, instead
+    // of returning every BLE device in range.
+    //
+    // BLE encodes 128-bit UUIDs little-endian on the wire, so we hand the
+    // u128 through `to_le_bytes()` directly.
+    let service_uuid_bytes: [u8; 16] = SERVICE_UUID.to_le_bytes();
     let mut advertisement_data = [0u8; 31];
-
-    let length = AdStructure::encode_slice(
+    let adv_length = AdStructure::encode_slice(
         &[
-            // means
             // 1. I'm visible indefinitely
             // 2. dont u try that classic bluetooth bullshit on me. fk u
             AdStructure::Flags(LE_GENERAL_DISCOVERABLE | BR_EDR_NOT_SUPPORTED),
-            AdStructure::CompleteLocalName(DEVICE_NAME.as_bytes()),
+            AdStructure::ServiceUuids128(&[service_uuid_bytes]),
         ],
         &mut advertisement_data[..],
+    )
+    .unwrap();
+
+    // Scan-response packet (a separate 31-byte payload returned when an
+    // active scanner sends SCAN_REQ): the local name. Together with the
+    // adv packet this gives scanners flags + service UUID + name without
+    // overflowing the 31-byte advertising limit.
+    let mut scan_response_data = [0u8; 31];
+    let scan_length = AdStructure::encode_slice(
+        &[AdStructure::CompleteLocalName(DEVICE_NAME.as_bytes())],
+        &mut scan_response_data[..],
     )
     .unwrap();
 
@@ -128,8 +144,8 @@ async fn bluetooth_app_task(
             .advertise(
                 &Default::default(),
                 Advertisement::ConnectableScannableUndirected {
-                    adv_data: &advertisement_data[..length],
-                    scan_data: &[],
+                    adv_data: &advertisement_data[..adv_length],
+                    scan_data: &scan_response_data[..scan_length],
                 },
             )
             .await

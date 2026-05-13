@@ -46,6 +46,18 @@ impl<'other_io, 'spi> Display<'other_io, 'spi> {
         &mut self.display
     }
 
+    pub fn controller(
+        &mut self,
+    ) -> &mut Ssd1683<
+        RefCellDevice<'other_io, Spi<'spi, Blocking>, Output<'other_io>, Delay>,
+        Output<'other_io>,
+        Output<'other_io>,
+        Input<'other_io>,
+        Delay,
+    > {
+        &mut self.controller
+    }
+
     pub fn init(&mut self) {
         if let Err(e) = self.controller.init() {
             error!("controller init failed: {:?}", e);

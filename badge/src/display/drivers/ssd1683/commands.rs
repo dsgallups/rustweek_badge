@@ -166,54 +166,51 @@ impl TemperatureSource {
     }
 }
 
-/// What the controller does with a RAM plane's contents on the way to the
-/// panel, configured per-plane by `DISPLAY_UPDATE_CONTROL_1`.
+/// Setting for opcode `0x21` (Display Update Control 1) — the per-plane
+/// "how to mix RAM1 (B/W) and RAM2 (red) into the panel output" config.
 ///
-/// The first parameter byte of opcode `0x21` is split into two nibbles: the
-/// **low** nibble configures RAM1 (B/W), the **high** nibble configures RAM2
-/// (red, or "previous frame" reference depending on mode). For each plane:
+/// **Read this carefully — the datasheet description and the empirical
+/// behavior disagree on this panel.**
 ///
-/// | Nibble | Meaning |
-/// | --- | --- |
-/// | `0x0` | Normal: drive the panel using the RAM bits as-is. |
-/// | `0x4` | Bypass: ignore this plane entirely (treat it as all-zeros). |
-/// | `0x8` | Inverse: flip every bit before driving. |
+/// The SSD1683 datasheet describes byte 1 as two independent 4-bit fields,
+/// one per plane, each picking between `0x0` (Normal: use the RAM bits
+/// as-is), `0x4` (Bypass: treat the plane as all zeros), and `0x8`
+/// (Inverse: flip the plane's bits). Per that description, "Normal /
+/// Normal" → `0x00` should be the right value for a tri-color refresh.
 ///
-/// **History note on this driver:** the old driver sent `[0x40, 0x00]` here,
-/// which set RAM2 to "bypass" — but the way the panel wires that combination
-/// also caused the red plane to come out inverted relative to what the
-/// software wrote. The fix is `Normal` for both planes, which matches the
-/// natural software convention `bit 1 = red on`.
+/// On the 4.2" b/w/r module on this badge, **`0x00` silently breaks
+/// refresh.** `MASTER_ACTIVATE` returns within milliseconds, BUSY barely
+/// glitches, and the panel doesn't change. The value that actually drives
+/// a working tri-color refresh is `[0x40, 0x00]` — the same value
+/// Waveshare's `EPD_4IN2B_V2` reference uses and what this driver
+/// previously used before the May 2026 rewrite tried to "clean it up."
 ///
-/// Cross-reference: datasheet, command `0x21`, byte 1 nibble fields.
+/// Under `0x40` the red plane bit semantics come out inverted from the
+/// datasheet description: `red_bit = 0` ⇒ red pixel **ON**, `red_bit = 1`
+/// ⇒ red pixel **OFF**. The encoding tables in
+/// `display/drivers/tricolor.rs` account for that — don't "fix" them
+/// without first reading this comment.
+///
+/// We expose this as a single-variant enum so the call site reads as
+/// configuration rather than a magic byte pair, and so the value lives
+/// next to the explanation of why it is what it is. Add variants if a
+/// future panel needs a different combination.
+///
+/// Cross-reference: datasheet, command `0x21`; Waveshare 4.2" b/w/r
+/// reference `EPD_4IN2B_V2_Init`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RamOption {
-    /// Drive the panel using the plane's RAM bits without modification.
-    Normal,
-    /// Ignore the plane — treat it as all zeros for refresh.
-    Bypass,
-    /// Flip every bit of the plane before driving the panel.
-    Inverse,
+pub enum DisplayUpdateOptions {
+    /// `[0x40, 0x00]` — the value the 4.2" tri-color SSD1683 panel needs
+    /// for a real refresh. **Not** "Normal/Normal" per the datasheet —
+    /// see the enum-level docs for why that doesn't work.
+    TriColor420,
 }
 
-impl RamOption {
-    fn nibble(self) -> u8 {
+impl DisplayUpdateOptions {
+    pub(super) fn bytes(self) -> [u8; 2] {
         match self {
-            Self::Normal => 0x0,
-            Self::Bypass => 0x4,
-            Self::Inverse => 0x8,
+            Self::TriColor420 => [0x40, 0x00],
         }
-    }
-
-    /// Pack a `(B/W plane, red plane)` pair into the two-byte parameter
-    /// `DISPLAY_UPDATE_CONTROL_1` expects.
-    ///
-    /// Byte 1: red nibble in the high half, B/W nibble in the low half.
-    /// Byte 2: `0x80` — "available source: S0..S399, normal scan range."
-    /// We always use the full 400 sources, so byte 2 is fixed.
-    pub(super) fn pack(bw: RamOption, red: RamOption) -> [u8; 2] {
-        let byte1 = (red.nibble() << 4) | bw.nibble();
-        [byte1, 0x80]
     }
 }
 
