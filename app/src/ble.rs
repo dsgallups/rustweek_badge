@@ -27,8 +27,13 @@ pub async fn first_adapter() -> Result<Adapter, String> {
 }
 
 pub async fn scan_all(adapter: &Adapter, dwell: Duration) -> Result<Vec<Discovered>, String> {
+    // Filter at the OS scan layer to our badge's service UUID. CoreBluetooth on
+    // macOS sometimes ignores this hint, so we also filter results below.
+    let filter = ScanFilter {
+        services: vec![SERVICE_UUID],
+    };
     adapter
-        .start_scan(ScanFilter::default())
+        .start_scan(filter)
         .await
         .map_err(|e| e.to_string())?;
     Delay::new(dwell).await;
@@ -37,6 +42,14 @@ pub async fn scan_all(adapter: &Adapter, dwell: Duration) -> Result<Vec<Discover
     let mut found = Vec::new();
     for p in adapter.peripherals().await.map_err(|e| e.to_string())? {
         let props = p.properties().await.ok().flatten();
+        // Second-pass filter: only keep peripherals advertising our service UUID.
+        let advertises_badge = props
+            .as_ref()
+            .map(|p| p.services.contains(&SERVICE_UUID))
+            .unwrap_or(false);
+        if !advertises_badge {
+            continue;
+        }
         let name = props
             .as_ref()
             .and_then(|p| p.local_name.clone())

@@ -17,7 +17,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Input, Level, Output, OutputConfig};
+use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::timer::timg::TimerGroup;
 use panic_rtt_target as _;
 
@@ -80,7 +80,7 @@ async fn main(spawner: Spawner) -> ! {
         display_reset: peripherals.GPIO18,
     };
 
-    spawner.spawn(display::run_display(display_pins).unwrap());
+    // spawner.spawn(display::run_display(display_pins).unwrap());
 
     bluetooth::init(&spawner, peripherals.BT).await;
 

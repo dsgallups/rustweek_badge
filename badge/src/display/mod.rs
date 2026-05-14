@@ -1,5 +1,9 @@
 pub mod drivers;
 
+mod color;
+use alloc::string::ToString;
+pub use color::*;
+
 #[allow(clippy::module_inception)]
 mod display;
 
@@ -7,6 +11,7 @@ use core::cell::RefCell;
 
 use defmt::{error, info};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     prelude::*,
     primitives::{Line, PrimitiveStyle},
@@ -25,12 +30,11 @@ use esp_hal::{
 
 pub static DRAW_CHANNEL: Channel<CriticalSectionRawMutex, DrawCommand, 4> = Channel::new();
 
-use drivers::{display420tri::TriColor, sram23k256::Sram23k256};
 use shared::{Color, DrawCommand};
 
 use crate::display::{
     display::Display,
-    drivers::{display420tri::Display420Tri, ssd1683::Ssd1683},
+    drivers::{Display420Tri, Ssd1683},
 };
 
 pub struct DisplayPins {
@@ -79,6 +83,12 @@ pub async fn run_display(pins: DisplayPins) {
         OutputConfig::default(),
     );
 
+    // So refcell devices allow us to communicate with a particular chip
+    // over common SPI pins by setting another active pin low.
+    //
+    // If you set all of these "chip select" pins low, then all receiving peripherals will
+    // recieve the data. if you set them all high, none of them will. And of course,
+    // If you set one low at a time, that particular device will only receive data over SPI.
     let paper_display_spi = RefCellDevice::new(
         &spi,
         Output::new(
@@ -97,15 +107,7 @@ pub async fn run_display(pins: DisplayPins) {
     )
     .expect("sram device");
 
-    let mut sram = Sram23k256::new(ram_spi);
-
-    if let Err(e) = sram.set_sequential_mode() {
-        defmt::error!("SRAM seq mode failed: {:?}", e);
-    } else {
-        info!("SRAM seq mode OK");
-    }
-
-    let display = Display420Tri::new(sram);
+    let display = Display420Tri::new_from_spi(ram_spi);
 
     let display_controller = Ssd1683::new(
         paper_display_spi,
@@ -116,13 +118,48 @@ pub async fn run_display(pins: DisplayPins) {
     );
 
     let mut device = Display::new(display, display_controller);
-    device.init();
+    // device.init();
     info!("Display initialized");
 
-    loop {
-        let command = DRAW_CHANNEL.receive().await;
-        handle_command(&mut device, command);
-    }
+    if let Err(e) = device.debug().await {
+        let val = e.0.as_ref();
+        info!("Error: {}", val);
+    };
+
+    // // Minimal flash self-test — bypasses the SRAM-backed framebuffer and the
+    // // tri-color encoding entirely. We fill the chip's own RAM1/RAM2 with
+    // // constant bytes and trigger a full refresh, so any failure here is at
+    // // the SSD1683 interface (SPI, BUSY, init sequence) and not in the
+    // // upstream framebuffer code.
+    // //
+    // // Patterns:
+    // // - (0x00, 0xFF) — RAM1 all 0 (black), RAM2 all 1 (red OFF under the
+    // //   panel's inverted red plane) → panel should drive **all-black**.
+    // // - (0xFF, 0xFF) — RAM1 all 1 (white), RAM2 all 1 (red OFF) → panel
+    // //   should drive **all-white**.
+    // // - (0xFF, 0x00) — RAM1 all 1 (white), RAM2 all 0 (red ON) → panel
+    // //   should drive **all-red** (red overrides B/W).
+    // for (label, bw_byte, red_byte) in [
+    //     ("black", 0x00u8, 0xFFu8),
+    //     ("white", 0xFFu8, 0xFFu8),
+    //     ("red", 0xFFu8, 0x00u8),
+    // ] {
+    //     info!(
+    //         "(DISPLAY) flash-test: filling {} (bw=0x{:02X}, red=0x{:02X})",
+    //         label, bw_byte, red_byte
+    //     );
+    //     match device.controller().flash_test(bw_byte, red_byte) {
+    //         Ok(()) => info!("(DISPLAY) flash-test {} refresh completed", label),
+    //         Err(e) => error!("(DISPLAY) flash-test {} failed: {:?}", label, e),
+    //     }
+    //     info!("(DISPLAY) flash-test {} holding 5s", label);
+    //     Timer::after(Duration::from_secs(5)).await;
+    // }
+
+    // loop {
+    //     let command = DRAW_CHANNEL.receive().await;
+    //     handle_command(&mut device, command);
+    // }
 }
 
 fn handle_command(display: &mut Display<'_, '_>, command: DrawCommand) {
@@ -143,7 +180,25 @@ fn handle_command(display: &mut Display<'_, '_>, command: DrawCommand) {
         DrawCommand::Debug => {
             info!("(DISPLAY) Executing debug!");
 
-            // display.display().clear_to(color);
+            if let Err(e) = display.display().clear_to(TriColor::White) {
+                error!("(DISPLAY) debug clear failed: {:?}", e);
+                return;
+            }
+
+            let diagonal = Line::new(Point::new(0, 0), Point::new(399, 299))
+                .into_styled(PrimitiveStyle::with_stroke(TriColor::Black, 1));
+            if let Err(e) = diagonal.draw(display.display()) {
+                error!("(DISPLAY) debug diagonal failed: {:?}", e);
+            }
+
+            let red_stripe = Line::new(Point::new(0, 150), Point::new(399, 150))
+                .into_styled(PrimitiveStyle::with_stroke(TriColor::Red, 3));
+            if let Err(e) = red_stripe.draw(display.display()) {
+                error!("(DISPLAY) debug stripe failed: {:?}", e);
+            }
+
+            display.flush();
+            info!("(DISPLAY) Debug pattern drawn + flushed");
         }
         DrawCommand::Clear { color } => {
             if let Err(e) = display.display().clear_to(tri_from(color)) {
