@@ -124,7 +124,7 @@ impl<'other_io, 'spi> Display<'other_io, 'spi> {
 
         let wait_for = 10;
 
-        self.controller.flash_test(0xFF, 0x00)?;
+        self.controller.flash_test(0x00, 0x00)?;
         info!("Flashed (0xFF, 0x00)! Waiting");
 
         self.controller.wait_busy()?;
