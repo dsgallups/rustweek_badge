@@ -256,58 +256,23 @@ where
         )
     }
 
-    /// Set the RAM "write cursor" — where the next byte streamed in via
-    /// `start_write_ram1`/`start_write_ram2` will land. Opcodes `0x4E` (X)
-    /// and `0x4F` (Y).
-    ///
-    /// Same unit conventions as [`Self::set_ram_window`]: X is in pixels
-    /// (we divide by 8 on the wire), Y is in pixel rows (little-endian u16).
     pub fn set_ram_address(&mut self, x: u16, y: u16) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.command_with_data(opcode::SET_RAM_X_COUNTER, &[(x >> 3) as u8])?;
         self.command_with_data(opcode::SET_RAM_Y_COUNTER, &[y as u8, (y >> 8) as u8])
     }
 
-    /// Begin streaming bytes into RAM1 (the black/white plane). Sends opcode
-    /// `0x24`.
-    ///
-    /// After this call, every subsequent [`Self::write_data`] byte writes one
-    /// 8-pixel column at the current RAM cursor and the cursor auto-advances
-    /// per the [`DataEntryMode`] set in init. The write "session" ends
-    /// implicitly the next time you send any other opcode.
     pub fn start_write_ram1(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.command_only(opcode::WRITE_RAM_BW)
     }
 
-    /// Begin streaming bytes into RAM2 (red plane on tri-color, or the
-    /// previous-frame buffer in mono partial mode). Sends opcode `0x26`.
-    /// See [`Self::start_write_ram1`] for the streaming model.
     pub fn start_write_ram2(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.command_only(opcode::WRITE_RAM_RED)
     }
 
-    /// Stream raw bytes to whichever RAM plane was most recently selected by
-    /// [`Self::start_write_ram1`] or [`Self::start_write_ram2`].
-    ///
-    /// Sets DC high (= data) and pushes the slice out over SPI in one
-    /// transaction. The chip's RAM address counter auto-advances per byte.
     pub fn write_data(&mut self, bytes: &[u8]) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.data(bytes)
     }
 
-    /// Diagnostic flash test: fill both chip-side RAM banks with the given
-    /// constant bytes and trigger a full refresh.
-    ///
-    /// Bypasses the SRAM-backed framebuffer and the tri-color encoding layer
-    /// entirely — useful for isolating the SSD1683 driver from everything
-    /// upstream of it. If `flash_test(0xFF, 0x00)` doesn't visibly drive the
-    /// panel to all-white-with-no-red, the problem is at the chip
-    /// interface (SPI, BUSY, init sequence), not in the framebuffer.
-    ///
-    /// `bw_byte` fills RAM1 (`0xFF` = all white, `0x00` = all black);
-    /// `red_byte` fills RAM2 (semantics depend on
-    /// [`DisplayUpdateOptions`] — under `TriColor420` on this panel, `0x00`
-    /// = red ON, `0xFF` = red OFF; see the wire-convention notes in
-    /// `tricolor.rs`).
     pub fn flash_test(
         &mut self,
         bw_byte: u8,
@@ -317,12 +282,9 @@ where
         const TOTAL_BYTES: usize = (WIDTH as usize * HEIGHT as usize) / 8;
 
         self.set_ram_window(0, 0, WIDTH - 1, HEIGHT - 1)?;
-        info!("Set ram window");
 
         self.set_ram_address(0, 0)?;
-        info!("Set ram address");
         self.start_write_ram1()?;
-        info!("Set writing ram1");
         let bw_chunk = [bw_byte; CHUNK];
         let mut sent = 0;
         while sent < TOTAL_BYTES {
@@ -333,7 +295,6 @@ where
 
         self.set_ram_address(0, 0)?;
         self.start_write_ram2()?;
-        info!("Set writing ram2");
         let red_chunk = [red_byte; CHUNK];
         let mut sent = 0;
         while sent < TOTAL_BYTES {
@@ -342,17 +303,9 @@ where
             sent += n;
         }
 
-        info!("Refreshing");
         self.refresh()
     }
 
-    /// Run a full display refresh, drawing whatever's currently in RAM1
-    /// (and RAM2, on tri-color) onto the physical ink.
-    ///
-    /// Sends `DISPLAY_UPDATE_CONTROL_2` with [`UpdateSequence::Full`] (`0xF7`)
-    /// to configure which pipeline steps the chip will run, then issues
-    /// `MASTER_ACTIVATE` (`0x20`) — the actual "go" command — and waits for
-    /// the refresh waveform to finish (~2 seconds; BUSY stays high).
     pub fn refresh(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.command_with_data(opcode::DISPLAY_UPDATE_CONTROL_2, &[0xF7])?;
         // self.command_with_data(
@@ -363,14 +316,6 @@ where
         self.wait_busy()
     }
 
-    /// Put the chip into deep sleep (opcode `0x10` with mode byte `0x01`).
-    ///
-    /// After this the chip ignores all SPI traffic and draws only its
-    /// quiescent leakage current (microamps). The only way out is to pulse
-    /// RST low — that is, to call [`Self::reset`] or [`Self::init`] again.
-    ///
-    /// Waits 100ms after the command so the chip's analog blocks have time
-    /// to settle before the caller might cut power.
     pub fn sleep(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         self.command_with_data(opcode::DEEP_SLEEP, &[0x01])?;
         self.delay.delay_ms(100);
@@ -407,20 +352,6 @@ where
         Ok(())
     }
 
-    /// Poll the BUSY pin until it goes low, with a 30-second timeout.
-    ///
-    /// BUSY is driven by the chip — high means "still working on the previous
-    /// command, don't talk to me." We poll every 10ms and bail with
-    /// [`Error::BusyTimeout`] if it stays high past the cap.
-    ///
-    /// The cap is generous (30s) because a tri-color full refresh on the
-    /// 4.2" b/w/r panel can legitimately take 10–15 seconds — the chip
-    /// drives a multi-phase waveform to coerce red particles into position
-    /// alongside black/white. A tight cap masks that as a hang.
-    ///
-    /// Every call logs the elapsed time so we can tell, post-mortem, whether
-    /// a "BusyTimeout" was the chip being wedged (≈ 30s flat) versus a
-    /// refresh that *almost* finished.
     pub fn wait_busy(&mut self) -> CmdResult<Spi::Error, DataCommand::Error> {
         const BUSY_POLL_INTERVAL_MS: u32 = 10;
         const BUSY_TIMEOUT_MS: u32 = 30_000;

@@ -137,8 +137,7 @@ impl<Spi: SpiDevice> Sram23k256<Spi> {
     /// for the whole transaction (the chip latches `data` on the trailing
     /// CS rise). Used by the framebuffer cache when flushing a dirty byte.
     pub fn write_byte(&mut self, addr: u16, val: u8) -> Result<(), Spi::Error> {
-        self.spi
-            .write(&[WRITE, (addr >> 8) as u8, addr as u8, val])
+        self.spi.write(&[WRITE, (addr >> 8) as u8, addr as u8, val])
     }
 
     /// Stream `data.len()` bytes into the chip starting at `addr`
@@ -155,12 +154,6 @@ impl<Spi: SpiDevice> Sram23k256<Spi> {
             .transaction(&mut [Operation::Write(&header), Operation::Write(data)])
     }
 
-    /// Stream `out.len()` bytes back from the chip starting at `addr`
-    /// (opcode `0x03` followed by reads).
-    ///
-    /// Used by `flush_to_panel` to pump the framebuffer from external SRAM
-    /// into the SSD1683's on-chip RAM via the MCU as a relay. Same
-    /// sequential-mode precondition as [`Self::write_bulk`].
     pub fn read_bulk(&mut self, addr: u16, out: &mut [u8]) -> Result<(), Spi::Error> {
         let header = [READ, (addr >> 8) as u8, addr as u8];
         self.spi

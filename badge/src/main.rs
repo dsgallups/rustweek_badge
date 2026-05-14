@@ -80,7 +80,7 @@ async fn main(spawner: Spawner) -> ! {
         display_reset: peripherals.GPIO18,
     };
 
-    spawner.spawn(display::run_display(display_pins).unwrap());
+    // spawner.spawn(display::run_display(display_pins).unwrap());
 
     bluetooth::init(&spawner, peripherals.BT).await;
 

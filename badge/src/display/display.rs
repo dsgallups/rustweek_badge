@@ -122,32 +122,35 @@ impl<'other_io, 'spi> Display<'other_io, 'spi> {
         info!("Set control");
         info!("Flashing!");
 
-        let wait_for = 10;
+        let wait_for = 3;
 
-        self.controller.flash_test(0x00, 0x00)?;
-        info!("Flashed (0xFF, 0x00)! Waiting");
+        // let mut black = true;
 
-        self.controller.wait_busy()?;
+        // loop {
+        //     if black {
+        //         self.controller.flash_test(0xFF, 0x00)?;
+        //         info!("Flashing black!");
+        //     } else {
+        //         self.controller.flash_test(0xFF, 0xFF)?;
+        //         info!("Flashing red!");
+        //     }
+        //     self.controller.wait_busy()?;
+        //     black = !black;
+        // }
 
-        // Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+        let codes = [[0xFF, 0x00], [0x00, 0x00], [0xFF, 0xFF]];
+        // let codes = [[0x00, 0x00], [0xFF, 0xFF]];
 
-        // self.controller.flash_test(0x00, 0x00)?;
-        // self.controller.wait_busy()?;
+        for i in 0..20 {
+            for code in codes {
+                info!("({} {:02X}, {:02X}): FLASHING", i, code[0], code[1]);
+                self.controller.flash_test(code[0], code[1])?;
+                info!("({} {:02X}, {:02X}): FLASHED", i, code[0], code[1]);
+                Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+            }
+        }
 
-        // info!("Flashed (0x00, 0x00)! Waiting");
-        // Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
-
-        // self.controller.flash_test(0x00, 0xFF)?;
-        // self.controller.wait_busy()?;
-
-        // info!("Flashed (0x00, 0xFF)! Waiting");
-        // Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
-
-        // self.controller.flash_test(0xFF, 0xFF)?;
-        // self.controller.wait_busy()?;
-
-        // info!("Flashed (0xFF, 0xFF)! Waiting");
-        Timer::after(embassy_time::Duration::from_secs(wait_for)).await;
+        // self.controller.sleep();
 
         info!("Done!");
         Ok(())
